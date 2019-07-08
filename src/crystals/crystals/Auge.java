@@ -13,7 +13,7 @@ import java.util.ArrayList;
  */
 public class Auge extends Kreatur
 {
-	private static final long serialVersionUID = -425407678033144864L;
+	private static final long serialVersionUID = -425407678033144865L;
 
 	public Auge(int x, int y)
 	{
