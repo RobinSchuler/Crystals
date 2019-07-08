@@ -1,0 +1,26 @@
+yes indeed - the worlds are just .png files.
+feel free to create levels...
+you can use any size you want.
+1 pixel = 1 square in the game.
+this is the Color code:
+	r / g / b = Type
+	--------------------------
+	255 / 255 / 255 = Empty
+	0 / 255 / 0 = Dirt
+	0 / 0 / 255 = Stone
+	255 / 0 / 0 = Base
+	255  / 255 / 0 = Gold
+	0 / 255 / 255 = Mithril
+	255 / 0 / 255 = Iron
+	0 / 0 / 0 = Cristal
+	200 / 200 / 200 = Trap
+	30 / 30 / 30 = Rock
+	50 / 40 / level + 50 = random Monster
+	50 / 50 / level + 50 = Rat
+	50 / 60 / level + 50 = Spider
+	50 / 70 / level + 50 = Slime
+	50 / 80 / level + 50 = Eyebat
+	50 / 90 / level + 50 = Claw
+	50 / 100 / level + 50 = Ghost
+	50 / 110 / level + 50 = Snake
+	50 / 120 / level + 50 = Spectre
