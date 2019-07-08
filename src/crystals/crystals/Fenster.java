@@ -426,6 +426,23 @@ public class Fenster extends JFrame implements MouseListener, KeyListener
 		{
 			umschalt = true;
 		}
+		else if (e.getKeyCode() == KeyEvent.VK_D)
+		{
+			if (angewaehlt instanceof Zwerg)
+			{
+				if (angewaehlt.poisoned)
+				{
+					System.out.println("unpoison");
+					((Zwerg) angewaehlt).poisoned=false;
+				}
+				else
+				{
+					System.out.println("poison");
+					((Zwerg) angewaehlt).poison();
+				}
+				
+			}
+		}
 
 		else if (e.getKeyCode() == KeyEvent.VK_U)
 		{
@@ -977,38 +994,6 @@ public class Fenster extends JFrame implements MouseListener, KeyListener
 				{
 					g.drawString("Hammer", (paintTo.getWidth()) - 200, -1 * 30 + 110);
 				}
-			}
-			else if (angewaehlt instanceof Ratte)
-			{
-				g.drawString("Rat", (paintTo.getWidth()) - 200, 8 * 30 + 110);
-			}
-			else if (angewaehlt instanceof Schlange)
-			{
-				g.drawString("Snake", (paintTo.getWidth()) - 200, 8 * 30 + 110);
-			}
-			else if (angewaehlt instanceof Schleim)
-			{
-				g.drawString("Slime", (paintTo.getWidth()) - 200, 8 * 30 + 110);
-			}
-			else if (angewaehlt instanceof Auge)
-			{
-				g.drawString("Eyebat", (paintTo.getWidth()) - 200, 8 * 30 + 110);
-			}
-			else if (angewaehlt instanceof Geist)
-			{
-				g.drawString("Ghost", (paintTo.getWidth()) - 200, 8 * 30 + 110);
-			}
-			else if (angewaehlt instanceof Spinne)
-			{
-				g.drawString("Spider", (paintTo.getWidth()) - 200, 8 * 30 + 110);
-			}
-			else if (angewaehlt instanceof Klaue)
-			{
-				g.drawString("Claw", (paintTo.getWidth()) - 200, 8 * 30 + 110);
-			}
-			else if (angewaehlt instanceof Spectre)
-			{
-				g.drawString("Spectre", (paintTo.getWidth()) - 200, 8 * 30 + 110);
 			}
 		}
 	}

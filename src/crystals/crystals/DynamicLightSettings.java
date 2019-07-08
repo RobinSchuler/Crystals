@@ -10,7 +10,7 @@ package crystals;
  */
 public class DynamicLightSettings {
     //toggle alles
-    static boolean an = true;
+    static boolean an = false;
     //zwergelampen
     static double lampenflackerWahrscheinlicheit = 0.00001;
     static double lampenflackerEndWahrscheinlicheit = 0.005;

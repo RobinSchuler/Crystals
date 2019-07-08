@@ -27,6 +27,7 @@ public class Kreatur implements Serializable
 	Image standS, standO, standW, standN, laufenS, laufenO, laufenW, laufenN, kampf;
 	ArrayList<Befehl> weg = new ArrayList<>();
 	char drectionlastmoved = 's';
+	boolean poisoned = false;
 
 	public Kreatur()
 	{
@@ -104,6 +105,14 @@ public class Kreatur implements Serializable
 		r.start();
 	}
 
+	public void poison()
+	{
+		System.out.println("poison called");
+		poisoned=true;
+		Poison r = new Poison();
+		r.start();	
+	}
+	
 	public void update(float fps)
 	{
 		if (!weg.isEmpty())
@@ -463,15 +472,7 @@ public class Kreatur implements Serializable
 							}
 						}
 					}
-					else
-					{
-						Schleim s = new Schleim(b.x, b.y);
-						while (Math.random() > 0.5f)
-						{
-							s.levelup();
-						}
-						Welt.viecher.add(s);
-					}
+
 				}
 				Welt.inhalt[b.x][b.y] = Welt.BlockArt.LEER;
 				Welt.sichtbarkeitberechnenvon(b.x, b.y);
@@ -525,41 +526,8 @@ public class Kreatur implements Serializable
 				}
 				if (weg.get(0) == warten && leben > 0)
 				{
-					if (a instanceof Schleim)
-					{
-						if (b instanceof Zwerg)
-						{
-							((Zwerg) (b)).zurueckruesten();
-						}
-					}
-					if (a instanceof Geist)
-					{
-						if (b instanceof Zwerg)
-						{
-							((Zwerg) (b)).leveldown();
-						}
-					}
-					if (a instanceof Schlange)
-					{
-						if (b instanceof Zwerg)
-						{
-							((Zwerg) (b)).regenerationszeit = 0;
-						}
-					}
-					int schadenreal = a.schaden - b.ruestung;
-					if (a instanceof Auge)
-					{
-						schadenreal += b.ruestung;
-					}
-					if (b instanceof Spectre)
-					{
-						schadenreal = 1;
-					}
-					if (schadenreal < 0)
-					{
-						schadenreal = 0;
-					}
-					b.leben -= schadenreal;
+					
+
 					Fenster.lokalersoundLaden("abbau.wav", b.posX, b.posY);
 					if (b.leben <= 0)
 					{
@@ -612,6 +580,41 @@ public class Kreatur implements Serializable
 		}
 
 		public Regenerieren()
+		{
+		}
+
+	}
+	
+	class Poison extends Thread
+	{
+		@Override
+		public void run()
+		{
+			while (poisoned)
+			{
+				super.run();
+				try
+				{
+					Thread.sleep((int) (regenerationszeit * 500));
+					if (leben > 0)
+					{
+						System.out.println("trigger lifeloss");
+						leben-=5;
+					}
+					else
+					{
+						System.out.println("trigger stirb");
+					stirb();
+					}
+				}
+				catch (InterruptedException ex)
+				{
+					Logger.getLogger(Kreatur.class.getName()).log(Level.SEVERE, null, ex);
+				}
+			}
+		}
+
+		public Poison()
 		{
 		}
 

@@ -131,44 +131,7 @@ public class Welt implements Serializable
                 int y = (int) (Math.random() * Welt.WELTHEIGTH);
                 if (Welt.inhalt[x][y] == Welt.BlockArt.LEER && Welt.sichtbar[x][y])
                 {
-                    int monster = (int) (Math.random() * 8);
-                    Kreatur k;
-                    switch (monster)
-                    {
-                        case 0:
-                            k = new Schleim(x, y);
-                            break;
-                        case 1:
-                            k = new Spinne(x, y);
-                            break;
-                        case 2:
-                            k = new Klaue(x, y);
-                            break;
-                        case 3:
-                            k = new Auge(x, y);
-                            break;
-                        case 4:
-                            k = new Geist(x, y);
-                            break;
-                        case 5:
-                            k = new Schlange(x, y);
-                            break;
-                        case 6:
-                            k = new Spectre(x, y);
-                            break;
-                        default:
-                            k = new Ratte(x, y);
-                            break;
-                    }
-                    for (int i = 0; i < monsterspawnlevel; i++)
-                    {
-                        k.levelup();
-                    }
-                    viecher.add(k);
-                    if (Math.random() * monsterspawnlevel * monsterspawnlevel * 2 < 1)
-                    {
-                        monsterspawnlevel++;
-                    }
+ 
                 }
                 try
                 {
@@ -242,121 +205,34 @@ public class Welt implements Serializable
                     inhalt[j][k] = BlockArt.LEER;
                     if (new Color(welt.getRGB(j, k)).getGreen() == 40)
                     {
-                        int level = new Color(welt.getRGB(j, k)).getBlue() - 51;
-                        int rand = (int) (Math.random() * 8);
-                        Kreatur r;
-                        switch (rand)
-                        {
-                            case 0:
-                                r = new Schleim(j, k);
-                                break;
-                            case 1:
-                                r = new Spinne(j, k);
-                                break;
-                            case 2:
-                                r = new Auge(j, k);
-                                break;
-                            case 3:
-                                r = new Geist(j, k);
-                                break;
-                            case 4:
-                                r = new Klaue(j, k);
-                                break;
-                            case 5:
-                                r = new Schlange(j, k);
-                                break;
-                            case 6:
-                                r = new Spectre(j, k);
-                                break;
-                            default:
-                                r = new Ratte(j, k);
-                                break;
-                        }
-                        while (level > 0)
-                        {
-                            level--;
-                            r.levelup();
-                        }
                     }
                     else if (new Color(welt.getRGB(j, k)).getGreen() == 50)
                     {
-                        int level = new Color(welt.getRGB(j, k)).getBlue() - 51;
-                        Ratte r = new Ratte(j, k);
-                        while (level > 0)
-                        {
-                            level--;
-                            r.levelup();
-                        }
                     }
                     else if (new Color(welt.getRGB(j, k)).getGreen() == 60)
                     {
-                        int level = new Color(welt.getRGB(j, k)).getBlue() - 51;
-                        Spinne r = new Spinne(j, k);
-                        while (level > 0)
-                        {
-                            level--;
-                            r.levelup();
-                        }
                     }
                     else if (new Color(welt.getRGB(j, k)).getGreen() == 70)
                     {
-                        int level = new Color(welt.getRGB(j, k)).getBlue() - 51;
-                        Schleim r = new Schleim(j, k);
-                        while (level > 0)
-                        {
-                            level--;
-                            r.levelup();
-                        }
                     }
                     else if (new Color(welt.getRGB(j, k)).getGreen() == 80)
                     {
-                        int level = new Color(welt.getRGB(j, k)).getBlue() - 51;
-                        Auge r = new Auge(j, k);
-                        while (level > 0)
-                        {
-                            level--;
-                            r.levelup();
-                        }
+    
                     }
                     else if (new Color(welt.getRGB(j, k)).getGreen() == 90)
                     {
-                        int level = new Color(welt.getRGB(j, k)).getBlue() - 51;
-                        Klaue r = new Klaue(j, k);
-                        while (level > 0)
-                        {
-                            level--;
-                            r.levelup();
-                        }
+    
                     }
                     else if (new Color(welt.getRGB(j, k)).getGreen() == 100)
                     {
-                        int level = new Color(welt.getRGB(j, k)).getBlue() - 51;
-                        Geist r = new Geist(j, k);
-                        while (level > 0)
-                        {
-                            level--;
-                            r.levelup();
-                        }
+
                     }
                     else if (new Color(welt.getRGB(j, k)).getGreen() == 110)
                     {
-                        int level = new Color(welt.getRGB(j, k)).getBlue() - 51;
-                        Schlange r = new Schlange(j, k);
-                        while (level > 0)
-                        {
-                            level--;
-                            r.levelup();
-                        }
                     }
                     else if (new Color(welt.getRGB(j, k)).getGreen() == 120)
                     {
-                        int level = new Color(welt.getRGB(j, k)).getBlue() - 51;
-                        Spectre r = new Spectre(j, k);
-                        while (level > 0)
-                        {
-                            level--;
-                            r.levelup();
-                        }
+
                     }
                 }
                 else
