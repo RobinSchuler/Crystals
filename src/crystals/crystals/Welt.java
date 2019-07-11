@@ -69,8 +69,8 @@ public class Welt implements Serializable
 
     private void readObject(java.io.ObjectInputStream stream) throws IOException, ClassNotFoundException
     {
-        GOLD = stream.readInt() + 100;
-        MITHRIL = stream.readInt();
+        GOLD = stream.readInt() + 1000;
+        MITHRIL = stream.readInt()+ 1000;
         EISEN = stream.readInt();
         ZWERGEANZAHL = stream.readInt();
         KRISTALLE = stream.readInt();

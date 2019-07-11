@@ -17,6 +17,9 @@ import java.util.logging.Logger;
  */
 public class Kreatur implements Serializable
 {
+	/**
+	 * 
+	 */
 	private static final long serialVersionUID = 9088697885132486873L;
 	int level = 1;
 	float letztePosx, letztePosy;
@@ -28,6 +31,8 @@ public class Kreatur implements Serializable
 	ArrayList<Befehl> weg = new ArrayList<>();
 	char drectionlastmoved = 's';
 	boolean poisoned = false;
+	int timeSinceInfection = 0;
+	ArrayList<Illness> illnesses = new ArrayList<>();
 
 	public Kreatur()
 	{
@@ -92,6 +97,8 @@ public class Kreatur implements Serializable
 		}
 		Regenerieren r = new Regenerieren();
 		r.start();
+		timeSinceInfection = 0;
+		illnesses = new ArrayList<>();
 	}
 
 	public Kreatur(int x, int y)
@@ -107,10 +114,32 @@ public class Kreatur implements Serializable
 
 	public void poison()
 	{
-		System.out.println("poison called");
-		poisoned=true;
-		Poison r = new Poison();
-		r.start();	
+
+		//add new Illness to array
+		Illness illness  = new Illness();
+		System.out.println("poison called"+ illness + illnesses + this.illnesses);
+		illnesses.add(illness);
+		if(poisoned!=true)
+		{
+			//start only on first illness
+			poisoned=true;
+			Poison r = new Poison(this);
+			r.start();		
+		}
+
+	}
+	public void poison(Illness illness)
+	{
+		System.out.println("add ilness");
+		//add new Illness to array
+		this.illnesses.add(illness);
+		if(poisoned!=true)
+		{
+			//start only on first illness
+			poisoned=true;
+			Poison r = new Poison(this);
+			r.start();		
+		}
 	}
 	
 	public void update(float fps)
@@ -587,6 +616,7 @@ public class Kreatur implements Serializable
 	
 	class Poison extends Thread
 	{
+		Kreatur kreatur;
 		@Override
 		public void run()
 		{
@@ -595,17 +625,39 @@ public class Kreatur implements Serializable
 				super.run();
 				try
 				{
-					Thread.sleep((int) (regenerationszeit * 500));
-					if (leben > 0)
+					Thread.sleep((int) (1000));
+					timeSinceInfection+=1000;
+					System.out.println("poisoned");
+					int[] distances=new int[Welt.viecher.size()];
+				    ArrayList<Kreatur> viecher = Welt.viecher;
+				    
+					for (int i = 0; i<viecher.size();i++)
 					{
-						System.out.println("trigger lifeloss");
-						leben-=5;
+						distances[i]=calculateDistance(posX, posY, viecher.get(i).posX, viecher.get(i).posY);
 					}
-					else
+					for (int i = 0; i<illnesses.size();i++)
 					{
-						System.out.println("trigger stirb");
-					stirb();
-					}
+						Illness illness = illnesses.get(i);
+						for (int j = 0; j<distances.length;j++)
+						{
+							if(distances[j]<illness.radius)
+							{
+								//try to infect
+								boolean getsInfected = diceInfected(illness.infectionProbability);
+								boolean breaksOut = diceBreakout(illness.breakoutProbability);
+								if(getsInfected&&breaksOut&&!viecher.get(j).equals(kreatur))
+									viecher.get(j).poison(illness);
+							}
+							
+						}
+						if(timeSinceInfection > (illness.infectionDuration+illness.infectionDuration))
+						{
+							illnesses.remove(illness);
+							timeSinceInfection=0;
+						}
+						if(illnesses.size()==0)
+							poisoned=false;
+					}							
 				}
 				catch (InterruptedException ex)
 				{
@@ -613,9 +665,23 @@ public class Kreatur implements Serializable
 				}
 			}
 		}
+		
+		private boolean diceBreakout(int breakoutProbability) {
+			return true;
+		}
 
-		public Poison()
+		private boolean diceInfected(int infectionProbability) {
+			return true;
+		}
+
+		private int calculateDistance(float x1, float y1, float x2, float y2)
+		{		
+			return (int)Math.floor(Math.sqrt(Math.pow((double)Math.abs(x1-x2), 2)+Math.pow((double)Math.abs(y1-y2), 2)));
+		}
+
+		public Poison(Kreatur kreatur)
 		{
+			this.kreatur=kreatur;
 		}
 
 	}

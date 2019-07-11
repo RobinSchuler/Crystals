@@ -430,16 +430,10 @@ public class Fenster extends JFrame implements MouseListener, KeyListener
 		{
 			if (angewaehlt instanceof Zwerg)
 			{
-				if (angewaehlt.poisoned)
-				{
-					System.out.println("unpoison");
-					((Zwerg) angewaehlt).poisoned=false;
-				}
-				else
-				{
+
 					System.out.println("poison");
 					((Zwerg) angewaehlt).poison();
-				}
+
 				
 			}
 		}
@@ -709,6 +703,15 @@ public class Fenster extends JFrame implements MouseListener, KeyListener
 						(int) ((kreatur.posY - yPos + 13f) * paintTo.getHeight() / 25)
 								+ verschiebungy, paintTo.getWidth() / 25,
 						paintTo.getHeight() / 25, null);
+				if(kreatur instanceof Zwerg && kreatur.poisoned)
+				{
+					int magicX=(int) ((kreatur.posX - xPos + 13f)* paintTo.getWidth() / 25)
+							+ verschiebungx;
+					int magicY=(int) ((kreatur.posY - yPos + 13f) * paintTo.getHeight() / 25)
+							+ verschiebungy;
+					int radius = kreatur.illnesses.get(0).radius;
+					g.drawOval(magicX-(int)Math.floor(radius/2)+25, magicY-(int)Math.floor(radius/2)+25, radius, radius);
+				}
 				if (kreatur.leben < kreatur.maxLeben)
 				{
 					int laenge = (int) (((float) kreatur.leben / kreatur.maxLeben) * 50);
