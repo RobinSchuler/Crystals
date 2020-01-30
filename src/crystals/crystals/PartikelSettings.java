@@ -4,10 +4,7 @@
  */
 package crystals;
 
-/**
- *
- * @author Markus
- */
+
 public class PartikelSettings {
     static boolean on = true;
     static float reibung = 0.999f;

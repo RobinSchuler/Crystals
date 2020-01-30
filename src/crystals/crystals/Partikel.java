@@ -4,10 +4,6 @@
  */
 package crystals;
 
-/**
- *
- * @author Markus
- */
 public class Partikel {
     float x,y,dichte,z = 1;
     float vx,vy,vz;
