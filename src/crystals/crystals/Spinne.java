@@ -7,10 +7,7 @@ package crystals;
 import java.io.IOException;
 import java.util.ArrayList;
 
-/**
- * 
- * @author Bernd
- */
+
 public class Spinne extends Kreatur
 {
 

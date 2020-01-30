@@ -7,10 +7,6 @@ package crystals;
 import java.io.IOException;
 import java.util.ArrayList;
 
-/**
- * 
- * @author Bernd
- */
 public class Auge extends Kreatur
 {
 	private static final long serialVersionUID = -425407678033144865L;

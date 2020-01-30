@@ -7,10 +7,7 @@ package crystals;
 import java.io.IOException;
 import java.util.ArrayList;
 
-/**
- * 
- * @author Bernd
- */
+
 public class Geist extends Kreatur
 {
 	private static final long serialVersionUID = -5554182632756874394L;

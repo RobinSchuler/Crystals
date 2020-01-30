@@ -7,10 +7,7 @@ package crystals;
 import java.io.IOException;
 import java.io.Serializable;
 
-/**
- * 
- * @author Bernd
- */
+
 public class Befehl implements Serializable
 {
 	String art;

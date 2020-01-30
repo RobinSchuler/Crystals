@@ -7,10 +7,7 @@ package crystals;
 import java.io.IOException;
 import java.util.ArrayList;
 
-/**
- * 
- * @author Bernd
- */
+
 public class Spectre extends Kreatur
 {
 	private static final long serialVersionUID = -967237714533783627L;

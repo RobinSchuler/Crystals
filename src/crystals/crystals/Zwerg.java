@@ -7,10 +7,7 @@ package crystals;
 import java.io.IOException;
 import java.util.ArrayList;
 
-/**
- * 
- * @author Bernd
- */
+
 public class Zwerg extends Kreatur
 {
 	private static final long serialVersionUID = 4966872363327135660L;

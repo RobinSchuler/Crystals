@@ -4,10 +4,7 @@
  */
 package crystals;
 
-/**
- *
- * @author Bernd
- */
+
 public class DynamicLightSettings {
     //toggle alles
     static boolean an = true;

@@ -8,10 +8,7 @@ import java.awt.Image;
 import java.io.IOException;
 import java.util.ArrayList;
 
-/**
- * 
- * @author Bernd
- */
+
 public class Schleim extends Kreatur
 {
 	private static final long serialVersionUID = 6749180492621064601L;
