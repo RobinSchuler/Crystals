@@ -40,6 +40,8 @@ isProject: false
 ## Decisions Summary
 
 - **Target**: Browser, Canvas 2D (no framework)
+- **Package manager**: Bun (not npm). All commands use `bun` / `bunx` (e.g. `bun run dev`, `bun test`)
+- **Tool versions**: A `.tool-versions` file at repo root specifies expected runtime versions (bun, node). No Java entry.
 - **Build tool**: Vite + TypeScript (strict mode)
 - **Naming**: Translate all German names to English
 - **Map format**: JSON for new maps (created by WeltEditor), PNG import for legacy levels. No backwards compat with old binary `.welt` map files
@@ -51,7 +53,7 @@ isProject: false
 - **Tests**: Yes, with Vitest, added per layer
 - **Scope**: Game + WeltEditor
 - **Location**: Replace Java in-place, move Java source to `/legacy`
-- **Hosting**: Local dev only (`npm run dev`) for now
+- **Hosting**: Local dev only (`bun run dev`) for now
 
 ---
 
@@ -118,10 +120,10 @@ tsconfig.json
 - Copy PNG levels from `alteWelten/` to `/public/worlds/`
 
 **Manual test after Layer 0:**
-1. Run `npm run dev` -- Vite dev server should start without errors
+1. Run `bun run dev` -- Vite dev server should start without errors
 2. Open `http://localhost:5173` -- you should see a blank page (or placeholder text), no console errors
 3. Open browser DevTools > Network tab, confirm asset files are accessible (e.g. navigate to `http://localhost:5173/assets/leer.png` -- should show the tile image)
-4. Run `npm test` -- Vitest should run with 0 tests, 0 failures
+4. Run `bun test` -- Vitest should run with 0 tests, 0 failures
 5. Check `/legacy/` folder contains all original Java files
 
 ---
@@ -134,7 +136,7 @@ tsconfig.json
 - Tests: enum completeness, command construction
 
 **Manual test after Layer 1:**
-1. Run `npm test` -- all type/enum tests should pass
+1. Run `bun test` -- all type/enum tests should pass
 2. No browser test needed (this is pure data, no visuals)
 
 ---
@@ -150,7 +152,7 @@ tsconfig.json
 - Tests: PNG loading, pathfinding, visibility, map JSON round-trip, save JSON round-trip
 
 **Manual test after Layer 2:**
-1. Run `npm test` -- all world tests should pass (pathfinding, visibility, save/load round-trip)
+1. Run `bun test` -- all world tests should pass (pathfinding, visibility, save/load round-trip)
 2. Open the browser -- there should be a temporary debug view that loads a PNG level (e.g. "Loose Gold (Easy).png") and prints the parsed grid to the console
 3. Check the console output: verify the grid dimensions match the PNG size, spot-check a few block types against the color codes (e.g. green pixels = DIRT, blue = STONE)
 4. Test save/load: the debug view should have a "Save" button that downloads a JSON file, and a "Load" button that reads it back. Verify the loaded world matches the original
@@ -167,7 +169,7 @@ tsconfig.json
 - Tests: movement, combat resolution, mining, leveling, command queue
 
 **Manual test after Layer 3:**
-1. Run `npm test` -- all creature tests should pass (movement, combat, mining, leveling, command queue)
+1. Run `bun test` -- all creature tests should pass (movement, combat, mining, leveling, command queue)
 2. Open the browser -- the debug view should now show creature positions as colored dots on the parsed grid (no sprites yet, just markers)
 3. Verify: 3 dwarves appear at the base location, monsters appear on their spawn tiles
 4. Watch for ~10 seconds: monsters should wander randomly (dots moving), dwarves should be idle at base
@@ -185,7 +187,7 @@ tsconfig.json
 - Tests: mostly visual / manual, but can test camera math
 
 **Manual test after Layer 4:**
-1. Run `npm test` -- camera math tests should pass
+1. Run `bun test` -- camera math tests should pass
 2. Open the browser -- you should now see the actual game world rendered with tile sprites
 3. Verify tile rendering: compare a few tiles against the Java version (dirt, stone, gold, crystal should look right)
 4. Check fog of war: unexplored areas should be dark/hidden, area around base should be visible
