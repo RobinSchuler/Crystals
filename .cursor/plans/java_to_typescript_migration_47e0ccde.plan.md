@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: layer-0-setup
     content: "Layer 0: Project setup -- Vite + TS + Vitest, move Java to /legacy, normalize + copy assets, convert audio"
-    status: pending
+    status: completed
   - id: layer-1-types
     content: "Layer 1: Data types -- BlockType, Command, ParticleSettings, DynamicLightSettings + tests"
     status: pending
