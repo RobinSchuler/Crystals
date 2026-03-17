@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: layer-2-world
     content: "Layer 2: World -- grid, PNG loading, JSON save/load, pathfinding, visibility + tests"
-    status: pending
+    status: completed
   - id: layer-3-creatures
     content: "Layer 3: Creatures -- Creature base, Dwarf (3 types), 8 monsters, timer-based actions, spawn system + tests"
     status: pending
