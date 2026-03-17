@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  DEFAULT_DYNAMIC_LIGHT_SETTINGS,
-  DEFAULT_PARTICLE_SETTINGS,
-} from "@/types";
+import { DEFAULT_DYNAMIC_LIGHT_SETTINGS, DEFAULT_PARTICLE_SETTINGS } from "@/types";
 
 describe("default settings", () => {
   it("keeps particle defaults from the legacy code", () => {

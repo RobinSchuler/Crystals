@@ -14,12 +14,7 @@ function freezePosition(x: number, y: number): GridPosition {
   return Object.freeze({ x, y });
 }
 
-function freezeRegion(
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-): GridRegion {
+function freezeRegion(startX: number, startY: number, endX: number, endY: number): GridRegion {
   return Object.freeze({
     start: freezePosition(startX, startY),
     end: freezePosition(endX, endY),
@@ -61,10 +56,6 @@ export class Command {
     const startY = Math.min(y1, y2);
     const endY = Math.max(y1, y2);
 
-    return new Command(
-      "regionMine",
-      undefined,
-      freezeRegion(startX, startY, endX, endY),
-    );
+    return new Command("regionMine", undefined, freezeRegion(startX, startY, endX, endY));
   }
 }

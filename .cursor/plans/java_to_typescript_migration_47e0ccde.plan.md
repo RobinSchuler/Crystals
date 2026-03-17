@@ -10,7 +10,10 @@ todos:
     status: completed
   - id: layer-1-types
     content: "Layer 1: Data types -- BlockType, Command, ParticleSettings, DynamicLightSettings + tests"
-    status: pending
+    status: completed
+  - id: layer-1-code-quality
+    content: "Layer 1.5: Code quality setup -- ESLint, Prettier, and a bun verify script"
+    status: completed
   - id: layer-2-world
     content: "Layer 2: World -- grid, PNG loading, JSON save/load, pathfinding, visibility + tests"
     status: pending
@@ -43,6 +46,7 @@ isProject: false
 - **Package manager**: Bun (not npm). All commands use `bun` / `bunx` (e.g. `bun run dev`, `bun test`)
 - **Tool versions**: A `.tool-versions` file at repo root specifies expected runtime versions (bun, node). No Java entry.
 - **Build tool**: Vite + TypeScript (strict mode)
+- **Code quality**: ESLint + Prettier with a `bun run verify` script for tests, lint, formatting, and type-checking
 - **Naming**: Translate all German names to English
 - **Map format**: JSON for new maps (created by WeltEditor), PNG import for legacy levels. No backwards compat with old binary `.welt` map files
 - **Save format**: JSON for game saves (replaces Java ObjectOutputStream `LastSave.welt`)
@@ -138,6 +142,21 @@ tsconfig.json
 **Manual test after Layer 1:**
 1. Run `bun test` -- all type/enum tests should pass
 2. No browser test needed (this is pure data, no visuals)
+
+---
+
+### Layer 1.5: Code Quality Setup
+
+- Add ESLint with a modern TypeScript flat config
+- Add Prettier with repo-specific ignore rules for `legacy/` and static asset folders
+- Add package scripts for `lint`, `format`, `format:check`, `typecheck`, and `verify`
+- Make `bun run verify` the standard pre-commit/pre-PR quality gate for all future migration steps
+
+**Manual test after Layer 1.5:**
+1. Run `bun run lint` -- should pass with no ESLint errors
+2. Run `bun run format:check` -- should report no formatting issues
+3. Run `bun run typecheck` -- should pass cleanly
+4. Run `bun run verify` -- should pass end-to-end
 
 ---
 

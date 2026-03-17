@@ -1,0 +1,8 @@
+.cursor/plans/
+.tool-versions
+bun.lock
+dist/
+legacy/
+node_modules/
+public/assets/
+public/worlds/
