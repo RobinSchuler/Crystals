@@ -19,7 +19,7 @@ todos:
     status: completed
   - id: layer-3-creatures
     content: "Layer 3: Creatures -- Creature base, Dwarf (3 types), 8 monsters, timer-based actions, spawn system + tests"
-    status: pending
+    status: completed
   - id: layer-4-rendering
     content: "Layer 4: Rendering -- Canvas renderer for tiles, creatures, particles, HUD, lighting, camera"
     status: pending
