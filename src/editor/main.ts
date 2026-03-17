@@ -1,3 +1,5 @@
+import { DEFAULT_DYNAMIC_LIGHT_SETTINGS, DEFAULT_PARTICLE_SETTINGS } from "@/types";
+
 function init() {
   const canvas = document.getElementById("editor") as HTMLCanvasElement;
   canvas.width = window.innerWidth;
@@ -10,6 +12,12 @@ function init() {
   ctx.font = "24px monospace";
   ctx.textAlign = "center";
   ctx.fillText("World Editor — setup complete", canvas.width / 2, canvas.height / 2);
+  ctx.font = "16px monospace";
+  ctx.fillText(
+    `Lighting ${DEFAULT_DYNAMIC_LIGHT_SETTINGS.granularity}px, particles ${DEFAULT_PARTICLE_SETTINGS.enabled ? "on" : "off"}`,
+    canvas.width / 2,
+    canvas.height / 2 + 36,
+  );
 }
 
 init();
