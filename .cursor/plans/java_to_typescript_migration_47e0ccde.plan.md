@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: layer-4-rendering
     content: "Layer 4: Rendering -- Canvas renderer for tiles, creatures, particles, HUD, lighting, camera"
-    status: pending
+    status: completed
   - id: layer-5-gameloop
     content: "Layer 5: Game loop + input -- requestAnimationFrame loop, mouse/keyboard handling, save/load integration"
     status: pending

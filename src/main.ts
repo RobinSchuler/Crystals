@@ -1,5 +1,7 @@
-import { BlockType } from "@/types";
 import { CreatureSimulation } from "@/creatures";
+import { Camera, type MouseState } from "@/game/camera";
+import { loadGameAssets } from "@/rendering/assets";
+import { GameRenderer } from "@/rendering/game-renderer";
 import {
   loadLegacyWorldMapFromPngUrl,
   parseWorldMap,
@@ -10,40 +12,7 @@ import {
 const DEFAULT_LEVEL_URL = "/worlds/loose_gold_easy.png";
 const MAX_FRAME_TIME_MS = 100;
 
-function getBlockColor(block: BlockType): string {
-  switch (block) {
-    case BlockType.EMPTY:
-      return "#f8f9fa";
-    case BlockType.DIRT:
-      return "#5c4033";
-    case BlockType.STONE:
-      return "#748cab";
-    case BlockType.GOLD:
-      return "#ffd43b";
-    case BlockType.IRON:
-      return "#adb5bd";
-    case BlockType.MITHRIL:
-      return "#66d9ef";
-    case BlockType.CRYSTAL:
-      return "#212529";
-    case BlockType.BASE:
-      return "#e03131";
-    case BlockType.ROCK:
-      return "#343a40";
-    case BlockType.TRAP:
-      return "#868e96";
-    case BlockType.LAVA:
-      return "#ff6b6b";
-    case BlockType.SHADOW:
-      return "#0b1020";
-  }
-}
-
-function drawDebugView(
-  canvas: HTMLCanvasElement,
-  lines: readonly string[],
-  simulation: CreatureSimulation | null,
-): void {
+function drawLoadingScreen(canvas: HTMLCanvasElement, message: string): void {
   const context = canvas.getContext("2d");
   if (context === null) {
     throw new Error("Could not create the 2D rendering context");
@@ -52,99 +21,9 @@ function drawDebugView(
   context.fillStyle = "#1a1a2e";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = "#e0e0e0";
-  context.textAlign = "left";
-  context.font = "24px monospace";
-  context.fillText("Crystals — Layer 3 debug view", 40, 56);
-
-  context.font = "16px monospace";
-  lines.forEach((line, index) => {
-    context.fillText(line, 40, 110 + index * 28);
-  });
-
-  if (simulation === null) {
-    return;
-  }
-
-  const world = simulation.world;
-  const statsBottomY = 110 + lines.length * 28;
-  const originX = 40;
-  const originY = statsBottomY + 32;
-  const availableWidth = canvas.width - originX * 2;
-  const availableHeight = canvas.height - originY - 40;
-  const mapSize = Math.min(availableWidth, availableHeight, 560);
-
-  if (mapSize < 120) {
-    context.fillStyle = "#e0e0e0";
-    context.fillText("Window too short for map preview below the stats.", 40, originY);
-    return;
-  }
-
-  const cellSize = Math.min(mapSize / world.width, mapSize / world.height);
-  const renderedMapWidth = world.width * cellSize;
-  const renderedMapHeight = world.height * cellSize;
-
-  context.save();
-  context.translate(originX, originY);
-  context.fillStyle = "#121629";
-  context.fillRect(0, 0, renderedMapWidth, renderedMapHeight);
-
-  for (let y = 0; y < world.height; y += 1) {
-    for (let x = 0; x < world.width; x += 1) {
-      context.fillStyle = world.isVisible(x, y) ? getBlockColor(world.getBlock(x, y)) : "#111827";
-      context.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-    }
-  }
-
-  for (const creature of simulation.getAllCreatures()) {
-    context.fillStyle = creature.debugColor;
-    context.beginPath();
-    context.arc(
-      (creature.position.x + 0.5) * cellSize,
-      (creature.position.y + 0.5) * cellSize,
-      Math.max(2, cellSize * 0.28),
-      0,
-      Math.PI * 2,
-    );
-    context.fill();
-  }
-
-  context.strokeStyle = "#94a3b8";
-  context.lineWidth = 1;
-  context.strokeRect(0, 0, renderedMapWidth, renderedMapHeight);
-  context.restore();
-}
-
-function countBlockTypes(simulation: CreatureSimulation): Record<string, number> {
-  const counts: Record<string, number> = {};
-  const mapData = simulation.world.toMapData();
-
-  for (const block of mapData.blocks) {
-    counts[block] = (counts[block] ?? 0) + 1;
-  }
-
-  return counts;
-}
-
-function buildSummaryLines(simulation: CreatureSimulation, sourceLabel: string): string[] {
-  const world = simulation.world;
-  const mapData = world.toMapData();
-  const counts = countBlockTypes(simulation);
-
-  return [
-    `Loaded: ${sourceLabel}`,
-    `World: ${mapData.name}`,
-    `Size: ${world.width} x ${world.height}`,
-    `Base: ${
-      world.basePosition === null ? "none" : `${world.basePosition.x}, ${world.basePosition.y}`
-    }`,
-    `Monster spawns: ${mapData.monsterSpawns.length}`,
-    `Active creatures: ${simulation.getAllCreatures().length}`,
-    `Dwarves/Monsters: ${simulation.getDwarves().length}/${simulation.getAllCreatures().length - simulation.getDwarves().length}`,
-    `Crystals: ${mapData.crystalCount}`,
-    `Visible tiles: ${world.getVisibilityGrid().filter(Boolean).length}`,
-    `Empty/Stone/Dirt: ${counts[BlockType.EMPTY]}/${counts[BlockType.STONE]}/${counts[BlockType.DIRT]}`,
-    `Resources G/I/M/C: ${simulation.resources.gold}/${simulation.resources.iron}/${simulation.resources.mithril}/${simulation.resources.crystals}`,
-  ];
+  context.textAlign = "center";
+  context.font = "28px monospace";
+  context.fillText(message, canvas.width / 2, canvas.height / 2);
 }
 
 function downloadJson(filename: string, contents: string): void {
@@ -162,11 +41,14 @@ function downloadJson(filename: string, contents: string): void {
 function createControls(onSave: () => void, onLoad: (file: File) => Promise<void>): HTMLDivElement {
   const controls = document.createElement("div");
   controls.style.position = "fixed";
-  controls.style.top = "20px";
+  controls.style.top = "132px";
   controls.style.right = "20px";
   controls.style.display = "flex";
   controls.style.gap = "12px";
   controls.style.zIndex = "10";
+  controls.style.flexWrap = "wrap";
+  controls.style.justifyContent = "flex-end";
+  controls.style.maxWidth = "280px";
 
   const saveButton = document.createElement("button");
   saveButton.textContent = "Save JSON";
@@ -202,22 +84,47 @@ function createControls(onSave: () => void, onLoad: (file: File) => Promise<void
   return controls;
 }
 
+function syncCameraToWorld(camera: Camera, simulation: CreatureSimulation): void {
+  const fallbackPosition = simulation.getDwarves()[0]?.cellPosition ?? { x: 0, y: 0 };
+  camera.setCenter(simulation.world.basePosition ?? fallbackPosition, simulation.world);
+}
+
+function getDefaultSelectedCreatureId(simulation: CreatureSimulation): string | null {
+  return simulation.getDwarves()[0]?.id ?? simulation.getAllCreatures()[0]?.id ?? null;
+}
+
 async function init(): Promise<void> {
   const canvas = document.getElementById("game") as HTMLCanvasElement;
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
   let simulation: CreatureSimulation | null = null;
+  let renderer: GameRenderer | null = null;
+  let camera: Camera | null = null;
+  let selectedCreatureId: string | null = null;
   let currentLabel = DEFAULT_LEVEL_URL;
-  let statusMessage = "Loading legacy PNG level...";
+  let statusMessage = "Loading Layer 4 renderer...";
   let previousFrameTime = performance.now();
+  const mouseState: MouseState = {
+    x: 0.5,
+    y: 0.5,
+    inside: false,
+  };
 
   const redraw = () => {
-    const lines =
-      simulation === null
-        ? [statusMessage]
-        : [...buildSummaryLines(simulation, currentLabel), `Status: ${statusMessage}`];
-    drawDebugView(canvas, lines, simulation);
+    if (simulation === null || renderer === null || camera === null) {
+      drawLoadingScreen(canvas, statusMessage);
+      return;
+    }
+
+    renderer.render(canvas, {
+      simulation,
+      camera,
+      selectedCreatureId,
+      showHelp: true,
+      statusMessage: `${currentLabel} — ${statusMessage}`,
+      frameMs: performance.now(),
+    });
   };
 
   const controls = createControls(
@@ -246,9 +153,13 @@ async function init(): Promise<void> {
         statusMessage = "Loaded map JSON successfully";
       }
 
+      if (simulation !== null && camera !== null) {
+        syncCameraToWorld(camera, simulation);
+      }
+      selectedCreatureId = simulation === null ? null : getDefaultSelectedCreatureId(simulation);
       redraw();
       if (simulation !== null) {
-        console.log("Loaded debug world from JSON", simulation.world.toMapData());
+        console.log("Loaded world from JSON", simulation.world.toMapData());
       }
     },
   );
@@ -256,12 +167,20 @@ async function init(): Promise<void> {
   document.body.append(controls);
   redraw();
 
+  const assets = await loadGameAssets();
+  renderer = new GameRenderer(assets);
+  camera = new Camera();
+  statusMessage = "Loading legacy PNG level...";
+  redraw();
+
   const mapData = await loadLegacyWorldMapFromPngUrl(DEFAULT_LEVEL_URL, "Loose Gold (Easy)");
   simulation = CreatureSimulation.fromMapData(mapData);
+  syncCameraToWorld(camera, simulation);
+  selectedCreatureId = getDefaultSelectedCreatureId(simulation);
   currentLabel = DEFAULT_LEVEL_URL;
-  statusMessage = "Legacy PNG parsed successfully";
+  statusMessage = "Layer 4 renderer ready";
 
-  console.group("Layer 3 debug world");
+  console.group("Layer 4 world");
   console.log("Map data", mapData);
   console.log("World summary", {
     basePosition: simulation.world.basePosition,
@@ -273,12 +192,34 @@ async function init(): Promise<void> {
 
   redraw();
 
+  const updateMouseState = (event: MouseEvent) => {
+    const bounds = canvas.getBoundingClientRect();
+    mouseState.x = Math.min(Math.max((event.clientX - bounds.left) / bounds.width, 0), 1);
+    mouseState.y = Math.min(Math.max((event.clientY - bounds.top) / bounds.height, 0), 1);
+    mouseState.inside = true;
+  };
+
+  canvas.addEventListener("mousemove", updateMouseState);
+  canvas.addEventListener("mouseenter", updateMouseState);
+  canvas.addEventListener("mouseleave", () => {
+    mouseState.inside = false;
+  });
+
   const tick = (timestamp: number) => {
     const deltaMs = Math.min(timestamp - previousFrameTime, MAX_FRAME_TIME_MS);
     previousFrameTime = timestamp;
 
-    if (simulation !== null) {
+    if (simulation !== null && camera !== null) {
       simulation.update(deltaMs);
+      camera.updateFromMouse(mouseState, deltaMs, simulation.world);
+
+      if (
+        selectedCreatureId !== null &&
+        simulation.findCreatureById(selectedCreatureId) === undefined
+      ) {
+        selectedCreatureId = getDefaultSelectedCreatureId(simulation);
+      }
+
       redraw();
     }
 

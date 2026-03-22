@@ -50,6 +50,8 @@ export class SequenceRandomSource implements RandomSource {
 }
 
 export class CreatureSimulation implements WorldSimulationLike {
+  private static readonly DWARF_VISIBILITY_RADIUS = 3;
+
   public readonly world: World;
   public readonly random: RandomSource;
   public readonly resources: WorldResources;
@@ -84,6 +86,11 @@ export class CreatureSimulation implements WorldSimulationLike {
 
     if (simulation.world.basePosition !== null) {
       simulation.world.revealFrom(simulation.world.basePosition.x, simulation.world.basePosition.y);
+      simulation.world.revealRadius(
+        simulation.world.basePosition.x,
+        simulation.world.basePosition.y,
+        CreatureSimulation.DWARF_VISIBILITY_RADIUS,
+      );
       for (let index = 0; index < 3; index += 1) {
         simulation.addCreature(
           new Dwarf(simulation.allocateId("dwarf"), simulation.world.basePosition),
@@ -204,6 +211,11 @@ export class CreatureSimulation implements WorldSimulationLike {
   ): void {
     this.world.unregisterCreature(creature.id, previousCell);
     this.world.registerCreature(creature.id, nextCell);
+
+    if (creature instanceof Dwarf) {
+      this.world.revealFrom(nextCell.x, nextCell.y);
+      this.world.revealRadius(nextCell.x, nextCell.y, CreatureSimulation.DWARF_VISIBILITY_RADIUS);
+    }
   }
 
   public attack(attacker: Creature, target: Creature): void {
@@ -438,6 +450,14 @@ export class CreatureSimulation implements WorldSimulationLike {
   private addCreature(creature: Creature): void {
     this.creatures.set(creature.id, creature);
     this.world.registerCreature(creature.id, creature.cellPosition);
+
+    if (creature instanceof Dwarf) {
+      this.world.revealRadius(
+        creature.cellPosition.x,
+        creature.cellPosition.y,
+        CreatureSimulation.DWARF_VISIBILITY_RADIUS,
+      );
+    }
   }
 
   private createMonster(
