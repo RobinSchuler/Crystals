@@ -3,6 +3,7 @@ export {
   DefaultRandomSource,
   CreatureSimulation,
   SequenceRandomSource,
+  type SimulationEffect,
   type SpawnConfig,
 } from "./simulation";
 export { Dwarf, type DwarfEquipment } from "./dwarf";

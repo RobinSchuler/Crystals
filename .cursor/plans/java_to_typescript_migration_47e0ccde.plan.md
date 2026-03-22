@@ -25,7 +25,7 @@ todos:
     status: completed
   - id: layer-5-gameloop
     content: "Layer 5: Game loop + input -- requestAnimationFrame loop, mouse/keyboard handling, save/load integration"
-    status: pending
+    status: completed
   - id: layer-6-audio
     content: "Layer 6: Audio -- Web Audio API, positional sound, background music, sound effects"
     status: pending

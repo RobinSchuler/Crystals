@@ -155,30 +155,6 @@ export class World {
     }
   }
 
-  public revealRadius(centerX: number, centerY: number, radius: number): void {
-    if (!this.inBounds(centerX, centerY) || radius < 0) {
-      return;
-    }
-
-    const radiusSquared = radius * radius;
-
-    for (let y = centerY - radius; y <= centerY + radius; y += 1) {
-      for (let x = centerX - radius; x <= centerX + radius; x += 1) {
-        if (!this.inBounds(x, y)) {
-          continue;
-        }
-
-        const dx = x - centerX;
-        const dy = y - centerY;
-        if (dx * dx + dy * dy > radiusSquared) {
-          continue;
-        }
-
-        this.visibility[this.toIndex(x, y)] = true;
-      }
-    }
-  }
-
   public findPath(start: GridPosition, end: GridPosition): readonly GridPosition[] {
     if (!this.inBounds(start.x, start.y) || !this.inBounds(end.x, end.y)) {
       return Object.freeze([]);

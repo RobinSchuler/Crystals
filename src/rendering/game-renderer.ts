@@ -1,6 +1,8 @@
 import type { CreatureSimulation, Dwarf } from "@/creatures";
 import type { Creature } from "@/creatures";
-import { BlockType } from "@/types";
+import type { RenderParticle } from "@/game/particles";
+import { BlockType, type GridRegion } from "@/types";
+import { DEFAULT_DYNAMIC_LIGHT_SETTINGS } from "@/types";
 
 import type { Camera } from "@/game/camera";
 
@@ -13,6 +15,8 @@ interface RenderState {
   readonly showHelp: boolean;
   readonly statusMessage?: string;
   readonly frameMs: number;
+  readonly particles: readonly RenderParticle[];
+  readonly dragRegion: GridRegion | null;
 }
 
 const VIRTUAL_SIZE = 1250;
@@ -20,6 +24,10 @@ const HUD_HEIGHT = 112;
 const TILE_VIEWPORT_SIZE = 25;
 const HELP_PANEL_WIDTH = 470;
 const HELP_PANEL_PADDING = 20;
+
+export const GAME_RENDER_VIRTUAL_SIZE = VIRTUAL_SIZE;
+export const GAME_RENDER_HUD_HEIGHT = HUD_HEIGHT;
+export const GAME_RENDER_TILE_VIEWPORT_SIZE = TILE_VIEWPORT_SIZE;
 
 function createOffscreenCanvas(size: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -99,9 +107,11 @@ function getCreatureSprite(
 ): HTMLImageElement | undefined {
   const spriteSet = assets.sprites[getCreatureVisual(creature)];
   const direction = toDirection(creature.direction);
+  const actionPhase = Math.floor(frameMs / 500) % 2;
 
   if (creature.isInCombat || creature.isMining) {
-    return spriteSet.action;
+    const actionIdle = spriteSet.idle.south ?? spriteSet.idle[direction];
+    return actionPhase === 0 ? actionIdle : spriteSet.action;
   }
 
   const isWalking = creature.commandQueue[0]?.type === "walk";
@@ -194,10 +204,13 @@ export class GameRenderer {
     target.imageSmoothingEnabled = false;
 
     this.drawWorld(state, tileSize);
+    this.drawDragRegion(state, tileSize);
     this.drawDynamicLighting(state, tileSize);
     this.drawCreatures(state, tileSize);
+    this.drawParticles(state, tileSize);
     this.drawSelection(state, tileSize);
     this.drawHud(state);
+    this.drawHelpHint(state);
     this.drawHelpOverlay(state);
 
     const context = canvas.getContext("2d");
@@ -316,11 +329,14 @@ export class GameRenderer {
   private drawDynamicLighting(state: RenderState, tileSize: number): void {
     const target = this.targetContext;
     const lighting = this.lightingContext;
+    const settings = DEFAULT_DYNAMIC_LIGHT_SETTINGS;
+    const columns = Math.ceil(VIRTUAL_SIZE / settings.granularity);
+    const rows = Math.ceil((VIRTUAL_SIZE - HUD_HEIGHT) / settings.granularity);
+    const shadowGrid = Array.from({ length: columns }, () =>
+      new Array<number>(rows).fill(settings.maxShadow),
+    );
 
     lighting.clearRect(0, 0, VIRTUAL_SIZE, VIRTUAL_SIZE);
-    lighting.fillStyle = "rgba(6, 10, 22, 0.22)";
-    lighting.fillRect(0, HUD_HEIGHT, VIRTUAL_SIZE, VIRTUAL_SIZE - HUD_HEIGHT);
-    lighting.globalCompositeOperation = "destination-out";
 
     for (const dwarf of state.simulation.getDwarves()) {
       const position = state.camera.worldToScreen(
@@ -330,28 +346,184 @@ export class GameRenderer {
         0,
         0,
       );
-      const radius = Math.max(tileSize * 2.8, tileSize * (3.4 + dwarf.lampBrightness / 18));
-      const gradient = lighting.createRadialGradient(
-        position.x,
-        position.y,
-        tileSize * 0.3,
-        position.x,
-        position.y,
-        radius,
+      const startShadow = Math.min(dwarf.lampBrightness, settings.maxShadow - 1);
+      const maxReachPx = Math.max(
+        settings.granularity,
+        (settings.maxShadow - startShadow) / settings.shadowIncrease,
       );
+      if (
+        position.x < -maxReachPx ||
+        position.y < HUD_HEIGHT - maxReachPx ||
+        position.x > VIRTUAL_SIZE + maxReachPx ||
+        position.y > VIRTUAL_SIZE + maxReachPx
+      ) {
+        continue;
+      }
 
-      gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
-      gradient.addColorStop(0.55, "rgba(255, 255, 255, 0.55)");
-      gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+      const rawColumn = Math.floor(position.x / settings.granularity);
+      const rawRow = Math.floor((position.y - HUD_HEIGHT) / settings.granularity);
+      const clampedColumn = Math.min(Math.max(rawColumn, 0), columns - 1);
+      const clampedRow = Math.min(Math.max(rawRow, 0), rows - 1);
+      const deltaColumns = rawColumn - clampedColumn;
+      const deltaRows = rawRow - clampedRow;
+      const shadowStep = settings.shadowIncrease * settings.granularity;
+      const seedShadow =
+        startShadow +
+        Math.sqrt(
+          deltaColumns * deltaColumns * shadowStep * shadowStep +
+            deltaRows * deltaRows * shadowStep * shadowStep,
+        );
 
-      lighting.fillStyle = gradient;
-      lighting.beginPath();
-      lighting.arc(position.x, position.y, radius, 0, Math.PI * 2);
-      lighting.fill();
+      this.propagateLight(shadowGrid, clampedColumn, clampedRow, seedShadow, state, tileSize);
     }
 
-    lighting.globalCompositeOperation = "source-over";
+    for (let column = 0; column < columns; column += 1) {
+      for (let row = 0; row < rows; row += 1) {
+        const alpha = shadowGrid[column]?.[row] ?? settings.maxShadow;
+        lighting.fillStyle = `rgba(${Math.trunc((255 - alpha) * settings.redScaling)}, ${Math.trunc(
+          (255 - alpha) * settings.greenScaling,
+        )}, ${Math.trunc((255 - alpha) * settings.blueScaling)}, ${alpha / 255})`;
+        lighting.fillRect(
+          column * settings.granularity,
+          HUD_HEIGHT + row * settings.granularity,
+          settings.granularity,
+          settings.granularity,
+        );
+      }
+    }
+
     target.drawImage(this.lightingTarget, 0, 0);
+  }
+
+  private propagateLight(
+    shadowGrid: number[][],
+    startColumn: number,
+    startRow: number,
+    startShadow: number,
+    state: RenderState,
+    tileSize: number,
+  ): void {
+    const settings = DEFAULT_DYNAMIC_LIGHT_SETTINGS;
+    const queue: Array<{ column: number; row: number; shadow: number }> = [
+      { column: startColumn, row: startRow, shadow: startShadow },
+    ];
+    const columns = shadowGrid.length;
+    const rows = shadowGrid[0]?.length ?? 0;
+
+    while (queue.length > 0) {
+      const next = queue.shift();
+      if (next === undefined) {
+        break;
+      }
+
+      if (
+        next.column < 0 ||
+        next.row < 0 ||
+        next.column >= columns ||
+        next.row >= rows ||
+        next.shadow >= settings.maxShadow
+      ) {
+        continue;
+      }
+
+      const current = shadowGrid[next.column]?.[next.row];
+      if (current === undefined || current <= next.shadow) {
+        continue;
+      }
+
+      const column = shadowGrid[next.column];
+      if (column === undefined) {
+        continue;
+      }
+
+      column[next.row] = next.shadow;
+
+      const screenX = next.column * settings.granularity + settings.granularity / 2;
+      const screenY = HUD_HEIGHT + next.row * settings.granularity + settings.granularity / 2;
+      const worldPosition = state.camera.screenToWorld(screenX, screenY, tileSize, 0, 0);
+      const worldX = Math.trunc(worldPosition.x);
+      const worldY = Math.trunc(worldPosition.y);
+
+      let shadowIncrease = settings.shadowIncrease * settings.granularity;
+      if (
+        !state.simulation.world.inBounds(worldX, worldY) ||
+        !state.simulation.world.isVisible(worldX, worldY) ||
+        state.simulation.world.getBlock(worldX, worldY) !== BlockType.EMPTY
+      ) {
+        shadowIncrease = settings.wallShadowIncrease * settings.granularity;
+      }
+
+      const diagonalIncrease = Math.sqrt(shadowIncrease * shadowIncrease * 2);
+      queue.push(
+        { column: next.column - 1, row: next.row, shadow: next.shadow + shadowIncrease },
+        { column: next.column + 1, row: next.row, shadow: next.shadow + shadowIncrease },
+        { column: next.column, row: next.row - 1, shadow: next.shadow + shadowIncrease },
+        { column: next.column, row: next.row + 1, shadow: next.shadow + shadowIncrease },
+        { column: next.column - 1, row: next.row - 1, shadow: next.shadow + diagonalIncrease },
+        { column: next.column + 1, row: next.row - 1, shadow: next.shadow + diagonalIncrease },
+        { column: next.column - 1, row: next.row + 1, shadow: next.shadow + diagonalIncrease },
+        { column: next.column + 1, row: next.row + 1, shadow: next.shadow + diagonalIncrease },
+      );
+    }
+  }
+
+  private drawParticles(state: RenderState, tileSize: number): void {
+    const target = this.targetContext;
+
+    for (const particle of state.particles) {
+      const tileX = Math.trunc(particle.worldX);
+      const tileY = Math.trunc(particle.worldY);
+      if (!state.simulation.world.isVisible(tileX, tileY)) {
+        continue;
+      }
+
+      const position = state.camera.worldToScreen(particle.worldX, particle.worldY, tileSize, 0, 0);
+      target.save();
+      target.globalAlpha = particle.alpha;
+      target.fillStyle = particle.color;
+
+      if (particle.kind === "text" && particle.text !== undefined) {
+        target.font = `${Math.max(12, Math.trunc(particle.size))}px monospace`;
+        target.textAlign = "center";
+        target.fillText(particle.text, position.x, position.y);
+        target.textAlign = "left";
+      } else {
+        target.beginPath();
+        target.arc(position.x, position.y, Math.max(2, particle.size / 2), 0, Math.PI * 2);
+        target.fill();
+      }
+
+      target.restore();
+    }
+  }
+
+  private drawDragRegion(state: RenderState, tileSize: number): void {
+    if (state.dragRegion === null) {
+      return;
+    }
+
+    const start = state.camera.worldToScreen(
+      state.dragRegion.start.x,
+      state.dragRegion.start.y,
+      tileSize,
+      0,
+      0,
+    );
+    const end = state.camera.worldToScreen(
+      state.dragRegion.end.x + 1,
+      state.dragRegion.end.y + 1,
+      tileSize,
+      0,
+      0,
+    );
+
+    this.targetContext.save();
+    this.targetContext.fillStyle = "rgba(124, 131, 253, 0.18)";
+    this.targetContext.strokeStyle = "#7c83fd";
+    this.targetContext.lineWidth = 2;
+    this.targetContext.fillRect(start.x, start.y, end.x - start.x, end.y - start.y);
+    this.targetContext.strokeRect(start.x, start.y, end.x - start.x, end.y - start.y);
+    this.targetContext.restore();
   }
 
   private drawHud(state: RenderState): void {
@@ -411,14 +583,17 @@ export class GameRenderer {
 
     const x = VIRTUAL_SIZE - panelWidth - 28;
     const wrappedLines = [
-      ...wrapText(target, "Move the mouse to screen edges to scroll the camera.", maxTextWidth),
-      ...wrapText(target, "The first dwarf is highlighted with the frame.", maxTextWidth),
+      ...wrapText(target, "Left-click a visible creature to select it.", maxTextWidth),
+      ...wrapText(target, "Right-click empty space to walk, or a block to mine.", maxTextWidth),
       ...wrapText(
         target,
-        "Fog hides unexplored tiles; lighting should no longer hide the dwarves.",
+        "Hold Shift to queue orders; right-drag for region mining.",
         maxTextWidth,
       ),
-      ...wrapText(target, "Watch monsters animate and wander in visible space.", maxTextWidth),
+      ...wrapText(target, "Press 1/2/3 to switch the selected dwarf class.", maxTextWidth),
+      ...wrapText(target, "Press L to level up the selected dwarf.", maxTextWidth),
+      ...wrapText(target, "Move the mouse to screen edges to scroll the camera.", maxTextWidth),
+      ...wrapText(target, "Press H to toggle this help panel.", maxTextWidth),
     ];
     const panelHeight = 82 + wrappedLines.length * 24;
     const y = VIRTUAL_SIZE - panelHeight - 28;
@@ -431,11 +606,22 @@ export class GameRenderer {
 
     target.fillStyle = "#ffffff";
     target.font = "18px monospace";
-    target.fillText("Layer 4 Manual Check", x + HELP_PANEL_PADDING, y + 32);
+    target.fillText("Layer 5 Controls", x + HELP_PANEL_PADDING, y + 32);
 
     target.font = "16px monospace";
     wrappedLines.forEach((line, index) => {
       target.fillText(line, x + HELP_PANEL_PADDING, y + 68 + index * 24);
     });
+  }
+
+  private drawHelpHint(state: RenderState): void {
+    if (state.showHelp) {
+      return;
+    }
+
+    const target = this.targetContext;
+    target.font = "16px monospace";
+    target.fillStyle = "#e0e0e0";
+    target.fillText("Press H for help", VIRTUAL_SIZE - 180, VIRTUAL_SIZE - 28);
   }
 }

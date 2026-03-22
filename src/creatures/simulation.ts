@@ -16,6 +16,19 @@ import { Dwarf } from "./dwarf";
 
 type SpawnableMonsterKind = Exclude<MonsterKind, "random">;
 
+export type SimulationEffect =
+  | {
+      readonly type: "damage";
+      readonly amount: number;
+      readonly position: GridPosition;
+      readonly targetFaction: Creature["faction"];
+    }
+  | {
+      readonly type: "mine";
+      readonly block: BlockType;
+      readonly position: GridPosition;
+    };
+
 export interface SpawnConfig {
   readonly enabled: boolean;
   readonly level: number;
@@ -50,13 +63,12 @@ export class SequenceRandomSource implements RandomSource {
 }
 
 export class CreatureSimulation implements WorldSimulationLike {
-  private static readonly DWARF_VISIBILITY_RADIUS = 3;
-
   public readonly world: World;
   public readonly random: RandomSource;
   public readonly resources: WorldResources;
 
   private readonly creatures = new Map<string, Creature>();
+  private readonly pendingEffects: SimulationEffect[] = [];
   private readonly resourceState: { gold: number; iron: number; mithril: number; crystals: number };
   private nextCreatureId = 1;
   private spawnConfig: SpawnConfig;
@@ -86,11 +98,6 @@ export class CreatureSimulation implements WorldSimulationLike {
 
     if (simulation.world.basePosition !== null) {
       simulation.world.revealFrom(simulation.world.basePosition.x, simulation.world.basePosition.y);
-      simulation.world.revealRadius(
-        simulation.world.basePosition.x,
-        simulation.world.basePosition.y,
-        CreatureSimulation.DWARF_VISIBILITY_RADIUS,
-      );
       for (let index = 0; index < 3; index += 1) {
         simulation.addCreature(
           new Dwarf(simulation.allocateId("dwarf"), simulation.world.basePosition),
@@ -161,6 +168,16 @@ export class CreatureSimulation implements WorldSimulationLike {
     );
   }
 
+  public drainEffects(): readonly SimulationEffect[] {
+    const effects = [...this.pendingEffects];
+    this.pendingEffects.length = 0;
+    return Object.freeze(effects);
+  }
+
+  public emitEffect(effect: SimulationEffect): void {
+    this.pendingEffects.push(effect);
+  }
+
   public update(deltaMs: number): void {
     for (const creature of this.getAllCreatures()) {
       creature.update(this, deltaMs);
@@ -183,6 +200,15 @@ export class CreatureSimulation implements WorldSimulationLike {
 
   public findPath(start: GridPosition, end: GridPosition): readonly GridPosition[] {
     return this.world.findPath(start, end);
+  }
+
+  public findMiningPath(start: GridPosition, target: GridPosition): readonly GridPosition[] | null {
+    const adjacentTarget = this.findAdjacentMiningPosition(start, target);
+    if (adjacentTarget === null) {
+      return null;
+    }
+
+    return this.findPath(start, adjacentTarget);
   }
 
   public clampToWorld(position: GridPosition): GridPosition {
@@ -214,7 +240,6 @@ export class CreatureSimulation implements WorldSimulationLike {
 
     if (creature instanceof Dwarf) {
       this.world.revealFrom(nextCell.x, nextCell.y);
-      this.world.revealRadius(nextCell.x, nextCell.y, CreatureSimulation.DWARF_VISIBILITY_RADIUS);
     }
   }
 
@@ -237,7 +262,17 @@ export class CreatureSimulation implements WorldSimulationLike {
       damage = 1;
     }
 
-    target.applyDamage(Math.max(0, damage));
+    const resolvedDamage = Math.max(0, damage);
+    target.applyDamage(resolvedDamage);
+
+    if (resolvedDamage > 0) {
+      this.emitEffect({
+        type: "damage",
+        amount: resolvedDamage,
+        position: target.cellPosition,
+        targetFaction: target.faction,
+      });
+    }
 
     if (target.health <= 0) {
       this.killCreature(target);
@@ -271,6 +306,14 @@ export class CreatureSimulation implements WorldSimulationLike {
         break;
     }
 
+    if (block !== BlockType.EMPTY) {
+      this.emitEffect({
+        type: "mine",
+        block,
+        position: target,
+      });
+    }
+
     this.world.setBlock(target.x, target.y, BlockType.EMPTY);
     this.world.revealFrom(target.x, target.y);
   }
@@ -288,10 +331,13 @@ export class CreatureSimulation implements WorldSimulationLike {
     this.addCreature(slime);
   }
 
-  public toSaveData(): WorldSaveData {
+  public toSaveData(options?: {
+    readonly camera?: { readonly x: number; readonly y: number };
+  }): WorldSaveData {
     return this.world.toSaveData({
       creatures: this.getAllCreatures().map((creature) => creature.toSnapshot()),
       resources: Object.freeze({ ...this.resourceState }),
+      camera: options?.camera,
     });
   }
 
@@ -313,15 +359,18 @@ export class CreatureSimulation implements WorldSimulationLike {
     }
 
     const start = append ? dwarf.getPlannedPosition() : dwarf.cellPosition;
-    const adjacentTarget = this.findAdjacentMiningPosition(start, target);
-    if (adjacentTarget === null) {
+    const path = this.findMiningPath(start, target);
+    if (path === null) {
+      if (append) {
+        dwarf.appendCommands([Command.mine(target.x, target.y)]);
+      }
       return;
     }
 
-    const path = this.findPath(start, adjacentTarget).map((position) =>
-      Command.walk(position.x, position.y),
-    );
-    const commands = [...path, Command.mine(target.x, target.y)];
+    const commands = [
+      ...path.map((position) => Command.walk(position.x, position.y)),
+      Command.mine(target.x, target.y),
+    ];
     dwarf.queueCommands(commands, append);
   }
 
@@ -330,15 +379,79 @@ export class CreatureSimulation implements WorldSimulationLike {
     region: { readonly start: GridPosition; readonly end: GridPosition },
     append = false,
   ): void {
-    const target = this.findLastMineableVisibleTile(region.start, region.end);
-    if (target === null) {
+    const command = Command.regionMine(region.start.x, region.start.y, region.end.x, region.end.y);
+    if (append) {
+      dwarf.appendCommands([command]);
       return;
     }
 
-    this.issueMineOrder(dwarf, target, append);
-    dwarf.appendCommands([
+    dwarf.replaceCommands([command]);
+  }
+
+  public resolveRegionMineCommand(
+    creature: Creature,
+    region: { readonly start: GridPosition; readonly end: GridPosition },
+  ): boolean {
+    if (!(creature instanceof Dwarf)) {
+      return false;
+    }
+
+    const target = this.findLastMineableVisibleTile(region.start, region.end);
+    if (target === null) {
+      return false;
+    }
+
+    const beforeLength = creature.commandQueue.length;
+    this.issueMineOrder(creature, target, false);
+    if (creature.commandQueue.length === beforeLength) {
+      return false;
+    }
+
+    creature.appendCommands([
       Command.regionMine(region.start.x, region.start.y, region.end.x, region.end.y),
     ]);
+    return true;
+  }
+
+  public tryLevelUpDwarf(dwarf: Dwarf): boolean {
+    const cost = dwarf.level * dwarf.level;
+    if (this.resourceState.gold < cost) {
+      return false;
+    }
+
+    this.resourceState.gold -= cost;
+    dwarf.levelUp();
+    return true;
+  }
+
+  public tryEquipDwarf(dwarf: Dwarf, equipment: "pickaxe" | "axe" | "hammer"): boolean {
+    if (equipment === "pickaxe") {
+      if (dwarf.equipment === "pickaxe" || this.resourceState.iron < 15) {
+        return false;
+      }
+
+      this.resourceState.iron -= 15;
+      dwarf.equipPickaxe();
+      return true;
+    }
+
+    if (equipment === "axe") {
+      if (dwarf.equipment === "axe" || this.resourceState.mithril < 15) {
+        return false;
+      }
+
+      this.resourceState.mithril -= 15;
+      dwarf.equipAxe();
+      return true;
+    }
+
+    if (dwarf.equipment === "hammer" || this.resourceState.mithril < 15) {
+      return false;
+    }
+
+    this.resourceState.mithril -= 15;
+    dwarf.equipHammer();
+    return true;
   }
 
   private createSpawnConfig(overrides?: Partial<SpawnConfig>): SpawnConfig {
@@ -450,14 +563,6 @@ export class CreatureSimulation implements WorldSimulationLike {
   private addCreature(creature: Creature): void {
     this.creatures.set(creature.id, creature);
     this.world.registerCreature(creature.id, creature.cellPosition);
-
-    if (creature instanceof Dwarf) {
-      this.world.revealRadius(
-        creature.cellPosition.x,
-        creature.cellPosition.y,
-        CreatureSimulation.DWARF_VISIBILITY_RADIUS,
-      );
-    }
   }
 
   private createMonster(

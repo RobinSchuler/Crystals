@@ -94,6 +94,22 @@ export class Camera {
     });
   }
 
+  public screenToWorld(
+    screenX: number,
+    screenY: number,
+    tileSize: number,
+    viewportX: number,
+    viewportY: number,
+  ): ScreenPoint {
+    const left = this.centerX - this.viewportTiles / 2;
+    const top = this.centerY - this.viewportTiles / 2;
+
+    return Object.freeze({
+      x: left + (screenX - viewportX) / tileSize,
+      y: top + (screenY - viewportY) / tileSize,
+    });
+  }
+
   public tileRect(
     tileX: number,
     tileY: number,

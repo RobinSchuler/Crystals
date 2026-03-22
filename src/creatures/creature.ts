@@ -2,6 +2,7 @@ import { Command, type GridPosition } from "@/types";
 import { BlockType } from "@/types";
 
 import { type CreatureSnapshot, type WorldResources } from "@/world";
+import type { SimulationEffect } from "./simulation";
 
 import {
   type CreatureDefinition,
@@ -20,15 +21,24 @@ export interface WorldSimulationLike {
   readonly resources: WorldResources;
   attack(attacker: Creature, target: Creature): void;
   clampToWorld(position: GridPosition): GridPosition;
+  emitEffect(effect: SimulationEffect): void;
   findCreatureById(id: string): Creature | undefined;
   findEnemiesAt(position: GridPosition, faction: CreatureFaction): Creature[];
   findPath(start: GridPosition, end: GridPosition): readonly GridPosition[];
+  findMiningPath(start: GridPosition, target: GridPosition): readonly GridPosition[] | null;
   getBlock(x: number, y: number): BlockType;
   getVisible(x: number, y: number): boolean;
   isInBounds(x: number, y: number): boolean;
   killCreature(creature: Creature): void;
   moveCreature(creature: Creature, previousCell: GridPosition, nextCell: GridPosition): void;
   onMineResolved(creature: Creature, target: GridPosition): void;
+  resolveRegionMineCommand(
+    creature: Creature,
+    region: {
+      readonly start: GridPosition;
+      readonly end: GridPosition;
+    },
+  ): boolean;
   spawnSlime(position: GridPosition): void;
 }
 
@@ -68,6 +78,7 @@ export class Creature {
   protected regenProgressMs = 0;
   protected attackProgressMs = 0;
   protected miningProgressMs = 0;
+  protected miningEffectProgressMs = 0;
   protected combatTargetId: string | null = null;
   protected miningTarget: GridPosition | null = null;
 
@@ -131,10 +142,12 @@ export class Creature {
   }
 
   public clearCommands(): void {
+    this.cancelActiveAction();
     this.commandQueue = [];
   }
 
   public replaceCommands(commands: readonly Command[]): void {
+    this.cancelActiveAction();
     this.commandQueue = [...commands];
   }
 
@@ -239,13 +252,45 @@ export class Creature {
         break;
       case "mine":
         if (currentCommand.target !== undefined) {
+          this.processMineCommand(simulation, currentCommand.target);
+        }
+        break;
+      case "regionMine":
+        if (currentCommand.region !== undefined) {
           this.commandQueue.shift();
-          this.miningTarget = currentCommand.target;
-          this.miningProgressMs = 0;
+          if (!simulation.resolveRegionMineCommand(this, currentCommand.region)) {
+            return;
+          }
         }
         break;
       default:
         break;
+    }
+  }
+
+  protected processMineCommand(simulation: WorldSimulationLike, target: GridPosition): void {
+    const dx = Math.abs(this.cellPosition.x - target.x);
+    const dy = Math.abs(this.cellPosition.y - target.y);
+    if (dx + dy === 1) {
+      this.commandQueue.shift();
+      this.miningTarget = target;
+      this.miningProgressMs = 0;
+      this.miningEffectProgressMs = 0;
+      return;
+    }
+
+    const path = simulation.findMiningPath(this.cellPosition, target);
+    if (path === null) {
+      return;
+    }
+
+    this.commandQueue.shift();
+    this.commandQueue.unshift(Command.mine(target.x, target.y));
+    for (let index = path.length - 1; index >= 0; index -= 1) {
+      const step = path[index];
+      if (step !== undefined) {
+        this.commandQueue.unshift(Command.walk(step.x, step.y));
+      }
     }
   }
 
@@ -347,6 +392,16 @@ export class Creature {
     const durationMs = this.getMiningDurationForBlock(targetBlock);
 
     this.miningProgressMs += deltaMs;
+    this.miningEffectProgressMs += deltaMs;
+    while (this.miningEffectProgressMs >= 1_000) {
+      this.miningEffectProgressMs -= 1_000;
+      simulation.emitEffect({
+        type: "mine",
+        block: targetBlock,
+        position: this.miningTarget,
+      });
+    }
+
     if (this.miningProgressMs < durationMs) {
       return true;
     }
@@ -354,7 +409,16 @@ export class Creature {
     simulation.onMineResolved(this, this.miningTarget);
     this.miningTarget = null;
     this.miningProgressMs = 0;
+    this.miningEffectProgressMs = 0;
     return true;
+  }
+
+  protected cancelActiveAction(): void {
+    this.miningTarget = null;
+    this.miningProgressMs = 0;
+    this.miningEffectProgressMs = 0;
+    this.combatTargetId = null;
+    this.attackProgressMs = 0;
   }
 
   protected tryStartCombat(simulation: WorldSimulationLike): void {
