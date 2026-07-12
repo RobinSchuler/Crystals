@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Command, BlockType } from "@/types";
 import { Dwarf, SequenceRandomSource, CreatureSimulation } from "@/creatures";
-import { serializeWorldSave, World } from "@/world";
+import { parseWorldSave, serializeWorldSave, World } from "@/world";
 
 function createBaseMap() {
   const world = World.createEmpty("creature-test", 4, 4);
@@ -254,6 +254,10 @@ describe("CreatureSimulation", () => {
       block: BlockType.GOLD,
       position: { x: 1, y: 1 },
     });
+    expect(miningEffects).toContainEqual({
+      type: "pickup",
+      position: { x: 1, y: 1 },
+    });
 
     expect(monster).toBeDefined();
     if (monster === undefined) {
@@ -266,6 +270,18 @@ describe("CreatureSimulation", () => {
     expect(combatEffects[0]).toMatchObject({
       type: "damage",
       targetFaction: "monster",
+    });
+  });
+
+  it("emits defeat audio events when a dwarf dies", () => {
+    const simulation = CreatureSimulation.fromMapData(createBaseMap());
+    const dwarf = simulation.getDwarves()[0];
+
+    simulation.killCreature(dwarf);
+
+    expect(simulation.drainEffects()).toContainEqual({
+      type: "lose",
+      position: { x: 0, y: 0 },
     });
   });
 
@@ -362,6 +378,100 @@ describe("CreatureSimulation", () => {
     simulation.update(2);
 
     expect(simulation.getAllCreatures().length).toBeGreaterThan(beforeSpawn);
+    expect(simulation.getAllCreatures().at(-1)?.level).toBe(1);
+  });
+
+  it("restores equipment, status, direction, and queued commands from a save", () => {
+    const simulation = CreatureSimulation.fromMapData(createBaseMap());
+    const dwarf = simulation.getDwarves()[0];
+    dwarf.equipHammer();
+    dwarf.levelUp();
+    dwarf.levelUp();
+    dwarf.direction = "east";
+    dwarf.regenerationDisabled = true;
+    dwarf.replaceCommands([Command.walk(1, 0), Command.mine(3, 0)]);
+
+    const restored = CreatureSimulation.fromSaveData(
+      parseWorldSave(serializeWorldSave(simulation.toSaveData())),
+    ).getDwarves()[0];
+
+    expect(restored.level).toBe(3);
+    expect(restored.equipment).toBe("hammer");
+    expect(restored.direction).toBe("east");
+    expect(restored.regenerationDisabled).toBe(true);
+    expect(restored.commandQueue).toEqual([Command.walk(1, 0), Command.mine(3, 0)]);
+    expect({
+      armor: restored.armor,
+      attackDamage: restored.attackDamage,
+      attackIntervalMs: restored.attackIntervalMs,
+      maxHealth: restored.maxHealth,
+      mineDurationMs: restored.mineDurationMs,
+      movementPerMs: restored.movementPerMs,
+      regenerationIntervalMs: restored.regenerationIntervalMs,
+    }).toEqual({
+      armor: dwarf.armor,
+      attackDamage: dwarf.attackDamage,
+      attackIntervalMs: dwarf.attackIntervalMs,
+      maxHealth: dwarf.maxHealth,
+      mineDurationMs: dwarf.mineDurationMs,
+      movementPerMs: dwarf.movementPerMs,
+      regenerationIntervalMs: dwarf.regenerationIntervalMs,
+    });
+  });
+
+  it("does not reuse creature ids after loading a save", () => {
+    const map = createBaseMap();
+    const simulation = CreatureSimulation.fromSaveData(
+      Object.freeze({
+        version: 1 as const,
+        map,
+        visibility: new Array(map.width * map.height).fill(true),
+        resources: { gold: 0, iron: 0, mithril: 0, crystals: 0 },
+        camera: { x: 0, y: 0 },
+        creatures: [
+          {
+            id: "slime-1",
+            kind: "slime" as const,
+            faction: "monster" as const,
+            level: 1,
+            health: 30,
+            position: { x: 1, y: 0 },
+            commandQueue: [],
+          },
+        ],
+      }),
+      {
+        random: new SequenceRandomSource([0, 0, 0, 1]),
+        spawn: { enabled: true, level: 1, minIntervalMs: 1, maxIntervalMs: 1 },
+      },
+    );
+
+    simulation.update(2);
+
+    expect(simulation.getAllCreatures().map((creature) => creature.id)).toEqual([
+      "slime-1",
+      "slime-2",
+    ]);
+  });
+
+  it("cancels a second miner when another dwarf removes its target", () => {
+    const world = World.createEmpty("shared-mine", 3, 2);
+    world.setBlock(0, 0, BlockType.BASE);
+    world.setBlock(0, 1, BlockType.EMPTY);
+    world.setBlock(1, 0, BlockType.EMPTY);
+    world.setBlock(1, 1, BlockType.STONE);
+    const simulation = CreatureSimulation.fromMapData(world.toMapData());
+    const [first, second] = simulation.getDwarves();
+
+    simulation.issueMineOrder(first, { x: 1, y: 1 });
+    simulation.issueMineOrder(second, { x: 1, y: 1 });
+    for (let step = 0; step < 25; step += 1) {
+      simulation.update(1_000);
+    }
+
+    expect(simulation.world.getBlock(1, 1)).toBe(BlockType.EMPTY);
+    expect(first.isMining).toBe(false);
+    expect(second.isMining).toBe(false);
   });
 
   it("queues region mining as a deferred region command", () => {

@@ -407,11 +407,13 @@ export class GameRenderer {
     const queue: Array<{ column: number; row: number; shadow: number }> = [
       { column: startColumn, row: startRow, shadow: startShadow },
     ];
+    let queueIndex = 0;
     const columns = shadowGrid.length;
     const rows = shadowGrid[0]?.length ?? 0;
 
-    while (queue.length > 0) {
-      const next = queue.shift();
+    while (queueIndex < queue.length) {
+      const next = queue[queueIndex];
+      queueIndex += 1;
       if (next === undefined) {
         break;
       }
@@ -592,6 +594,7 @@ export class GameRenderer {
       ),
       ...wrapText(target, "Press 1/2/3 to switch the selected dwarf class.", maxTextWidth),
       ...wrapText(target, "Press L to level up the selected dwarf.", maxTextWidth),
+      ...wrapText(target, "Press M to mute or enable audio.", maxTextWidth),
       ...wrapText(target, "Move the mouse to screen edges to scroll the camera.", maxTextWidth),
       ...wrapText(target, "Press H to toggle this help panel.", maxTextWidth),
     ];
@@ -606,7 +609,7 @@ export class GameRenderer {
 
     target.fillStyle = "#ffffff";
     target.font = "18px monospace";
-    target.fillText("Layer 5 Controls", x + HELP_PANEL_PADDING, y + 32);
+    target.fillText("Game Controls", x + HELP_PANEL_PADDING, y + 32);
 
     target.font = "16px monospace";
     wrappedLines.forEach((line, index) => {

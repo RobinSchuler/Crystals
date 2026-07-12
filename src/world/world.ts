@@ -94,9 +94,11 @@ export class World {
       return;
     }
 
-    this.blocks[this.toIndex(x, y)] = block;
-
     if (block === BlockType.BASE) {
+      if (this.basePositionValue !== null) {
+        this.blocks[this.toIndex(this.basePositionValue.x, this.basePositionValue.y)] =
+          BlockType.EMPTY;
+      }
       this.basePositionValue = createPosition(x, y);
     } else if (
       this.basePositionValue !== null &&
@@ -105,6 +107,8 @@ export class World {
     ) {
       this.basePositionValue = null;
     }
+
+    this.blocks[this.toIndex(x, y)] = block;
   }
 
   public isVisible(x: number, y: number): boolean {
@@ -127,20 +131,24 @@ export class World {
     this.visibility.splice(0, this.visibility.length, ...nextVisibility);
   }
 
-  public revealFrom(x: number, y: number): void {
+  public revealFrom(x: number, y: number): number {
     if (!this.inBounds(x, y)) {
-      return;
+      return 0;
     }
 
     const queue: GridPosition[] = [];
-    this.visibility[this.toIndex(x, y)] = true;
+    let queueIndex = 0;
+    const originIndex = this.toIndex(x, y);
+    let revealedCount = this.visibility[originIndex] ? 0 : 1;
+    this.visibility[originIndex] = true;
 
     if (isExplorableBlock(this.getBlock(x, y))) {
       queue.push(...this.getNeighborPositions(x, y));
     }
 
-    while (queue.length > 0) {
-      const nextPosition = queue.shift();
+    while (queueIndex < queue.length) {
+      const nextPosition = queue[queueIndex];
+      queueIndex += 1;
       if (nextPosition === undefined || !this.inBounds(nextPosition.x, nextPosition.y)) {
         continue;
       }
@@ -148,11 +156,16 @@ export class World {
       const nextIndex = this.toIndex(nextPosition.x, nextPosition.y);
       const wasVisible = this.visibility[nextIndex];
       this.visibility[nextIndex] = true;
+      if (!wasVisible) {
+        revealedCount += 1;
+      }
 
       if (!wasVisible && isExplorableBlock(this.getBlock(nextPosition.x, nextPosition.y))) {
         queue.push(...this.getNeighborPositions(nextPosition.x, nextPosition.y));
       }
     }
+
+    return revealedCount;
   }
 
   public findPath(start: GridPosition, end: GridPosition): readonly GridPosition[] {
@@ -177,11 +190,13 @@ export class World {
     const distances = new Array<number>(this.width * this.height).fill(Number.POSITIVE_INFINITY);
     const previous = new Array<number>(this.width * this.height).fill(-1);
     const queue: number[] = [startIndex];
+    let queueIndex = 0;
 
     distances[startIndex] = 0;
 
-    while (queue.length > 0) {
-      const currentIndex = queue.shift();
+    while (queueIndex < queue.length) {
+      const currentIndex = queue[queueIndex];
+      queueIndex += 1;
       if (currentIndex === undefined) {
         break;
       }

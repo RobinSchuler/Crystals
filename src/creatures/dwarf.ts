@@ -1,4 +1,5 @@
 import type { Command, GridPosition } from "@/types";
+import type { CreatureSnapshot } from "@/world";
 
 import { type CreatureStats } from "./definitions";
 import { Creature, type WorldSimulationLike } from "./creature";
@@ -38,6 +39,13 @@ export class Dwarf extends Creature {
   public override levelUp(): void {
     super.levelUp();
     this.health = Math.min(this.maxHealth, Math.trunc(this.health * 1.1));
+  }
+
+  public override toSnapshot(): CreatureSnapshot {
+    return Object.freeze({
+      ...super.toSnapshot(),
+      equipment: this.equipment,
+    });
   }
 
   public levelDown(): void {

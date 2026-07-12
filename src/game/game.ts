@@ -1,4 +1,5 @@
-import { CreatureSimulation, type Creature, type Dwarf } from "@/creatures";
+import { CreatureSimulation, Dwarf, type Creature, type SimulationEffect } from "@/creatures";
+import { AudioManager, shouldUseEnemyMusic } from "@/audio";
 import { loadGameAssets } from "@/rendering/assets";
 import {
   GameRenderer,
@@ -18,8 +19,13 @@ import { BlockType, type GridPosition, type GridRegion } from "@/types";
 import { Camera, type MouseState } from "./camera";
 import { ParticleSystem } from "./particles";
 
-const DEFAULT_LEVEL_URL = "/worlds/loose_gold_easy.png";
 const MAX_FRAME_TIME_MS = 100;
+
+export interface GameOptions {
+  readonly levelUrl?: string;
+  readonly levelName?: string;
+  readonly audio?: AudioManager;
+}
 
 function createPosition(x: number, y: number): GridPosition {
   return Object.freeze({ x, y });
@@ -55,7 +61,7 @@ function downloadJson(filename: string, contents: string): void {
   link.download = filename;
   link.click();
 
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function isRegionClick(start: GridPosition, end: GridPosition): boolean {
@@ -67,46 +73,72 @@ export class Game {
   private renderer: GameRenderer | null = null;
   private camera: Camera | null = null;
   private readonly particles = new ParticleSystem();
+  private readonly audio: AudioManager;
+  private readonly levelUrl: string;
+  private readonly levelName: string;
   private selectedCreatureId: string | null = null;
-  private currentLabel = DEFAULT_LEVEL_URL;
-  private statusMessage = "Loading Layer 5 game...";
+  private currentLabel: string;
+  private statusMessage = "Loading game...";
   private showHelp = false;
   private shiftHeld = false;
   private previousFrameTime = performance.now();
   private rightDragStart: GridPosition | null = null;
   private rightDragCurrent: GridPosition | null = null;
+  private soundButton: HTMLButtonElement | null = null;
   private readonly mouseState: MouseState = {
     x: 0.5,
     y: 0.5,
     inside: false,
   };
 
-  public constructor(private readonly canvas: HTMLCanvasElement) {}
+  public constructor(
+    private readonly canvas: HTMLCanvasElement,
+    options: GameOptions = {},
+  ) {
+    this.audio = options.audio ?? new AudioManager();
+    this.levelUrl = options.levelUrl ?? "/worlds/loose_gold_easy.png";
+    this.levelName = options.levelName ?? "Loose Gold (Easy)";
+    this.currentLabel = this.levelName;
+  }
 
   public async init(): Promise<void> {
-    this.resizeCanvas();
-    this.bindEvents();
-    this.redraw();
+    try {
+      this.resizeCanvas();
+      this.bindEvents();
+      this.redraw();
 
-    const assets = await loadGameAssets();
-    this.renderer = new GameRenderer(assets);
-    this.camera = new Camera();
-    this.createControls();
+      const [assets] = await Promise.all([loadGameAssets(), this.audio.initialize()]);
+      this.renderer = new GameRenderer(assets);
+      this.camera = new Camera();
+      this.createControls();
 
-    this.setStatus("Loading legacy PNG level...");
-    this.redraw();
+      this.setStatus("Loading legacy PNG level...");
+      this.redraw();
 
-    const mapData = await loadLegacyWorldMapFromPngUrl(DEFAULT_LEVEL_URL, "Loose Gold (Easy)");
-    this.applyLoadedState(
-      CreatureSimulation.fromMapData(mapData),
-      DEFAULT_LEVEL_URL,
-      "Layer 5 ready",
-    );
+      const mapData = await loadLegacyWorldMapFromPngUrl(this.levelUrl, this.levelName);
+      this.applyLoadedState(
+        CreatureSimulation.fromMapData(mapData),
+        this.levelName,
+        "Game ready — click to enable audio",
+      );
 
-    this.startLoop();
+      this.previousFrameTime = performance.now();
+      this.startLoop();
+    } catch (error) {
+      this.setStatus(
+        error instanceof Error ? `Could not start game: ${error.message}` : "Could not start game",
+      );
+      this.redraw();
+    }
   }
 
   private bindEvents(): void {
+    const unlockAudio = () => {
+      void this.audio.unlock();
+    };
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+
     this.canvas.addEventListener("contextmenu", (event) => {
       event.preventDefault();
     });
@@ -136,7 +168,7 @@ export class Game {
       }
     });
 
-    this.canvas.addEventListener("mouseup", (event) => {
+    window.addEventListener("mouseup", (event) => {
       if (event.button !== 2) {
         return;
       }
@@ -154,6 +186,13 @@ export class Game {
       if (event.code === "KeyH") {
         this.showHelp = !this.showHelp;
         this.setStatus(this.showHelp ? "Help shown" : "Help hidden");
+        return;
+      }
+
+      if (event.code === "KeyM") {
+        const muted = this.audio.toggleMuted();
+        this.updateSoundButton();
+        this.setStatus(muted ? "Audio muted" : "Audio enabled");
         return;
       }
 
@@ -181,6 +220,12 @@ export class Game {
       if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
         this.shiftHeld = false;
       }
+    });
+    window.addEventListener("blur", () => {
+      this.shiftHeld = false;
+      this.rightDragStart = null;
+      this.rightDragCurrent = null;
+      this.mouseState.inside = false;
     });
 
     window.addEventListener("resize", () => {
@@ -236,7 +281,15 @@ export class Game {
 
     loadButton.onclick = () => fileInput.click();
 
-    for (const element of [saveButton, loadButton]) {
+    this.soundButton = document.createElement("button");
+    this.soundButton.onclick = () => {
+      const muted = this.audio.toggleMuted();
+      this.updateSoundButton();
+      this.setStatus(muted ? "Audio muted" : "Audio enabled");
+    };
+    this.updateSoundButton();
+
+    for (const element of [saveButton, loadButton, this.soundButton]) {
       element.style.padding = "10px 14px";
       element.style.border = "1px solid #7c83fd";
       element.style.background = "#232946";
@@ -245,12 +298,22 @@ export class Game {
       element.style.font = "14px monospace";
     }
 
-    controls.append(saveButton, loadButton, fileInput);
+    controls.append(saveButton, loadButton, this.soundButton, fileInput);
     document.body.append(controls);
   }
 
   private async loadFromJsonFile(file: File): Promise<void> {
-    const contents = await file.text();
+    let contents: string;
+    try {
+      contents = await file.text();
+    } catch (error) {
+      this.setStatus(
+        error instanceof Error
+          ? `Could not read ${file.name}: ${error.message}`
+          : `Could not read ${file.name}`,
+      );
+      return;
+    }
 
     try {
       const parsedSave = parseWorldSave(contents);
@@ -260,16 +323,20 @@ export class Game {
         "Loaded save JSON successfully",
         parsedSave.camera,
       );
-      console.log("Loaded world from JSON", parsedSave.map);
       return;
-    } catch {
-      const parsedMap = parseWorldMap(contents);
-      this.applyLoadedState(
-        CreatureSimulation.fromMapData(parsedMap),
-        file.name,
-        "Loaded map JSON successfully",
-      );
-      console.log("Loaded world from JSON", parsedMap);
+    } catch (saveError) {
+      try {
+        const parsedMap = parseWorldMap(contents);
+        this.applyLoadedState(
+          CreatureSimulation.fromMapData(parsedMap),
+          file.name,
+          "Loaded map JSON successfully",
+        );
+      } catch (mapError) {
+        const message = mapError instanceof Error ? mapError.message : "Invalid JSON file";
+        const saveMessage = saveError instanceof Error ? saveError.message : "not a save file";
+        this.setStatus(`Could not load ${file.name}: ${message} (${saveMessage})`);
+      }
     }
   }
 
@@ -305,9 +372,15 @@ export class Game {
         this.simulation.update(deltaMs);
         for (const effect of this.simulation.drainEffects()) {
           this.particles.addEffect(effect);
+          this.playSimulationEffect(effect);
         }
         this.particles.update(deltaMs);
         this.camera.updateFromMouse(this.mouseState, deltaMs, this.simulation.world);
+        this.audio.setMusicMode(
+          shouldUseEnemyMusic(this.simulation.getAllCreatures(), this.camera.center)
+            ? "enemy"
+            : "normal",
+        );
 
         if (
           this.selectedCreatureId !== null &&
@@ -373,13 +446,12 @@ export class Game {
     }
 
     if (isRegionClick(startCell, endCell)) {
-      const beforeLength = dwarf.commandQueue.length;
-      this.simulation.issueRegionMineOrder(dwarf, createRegion(startCell, endCell), this.shiftHeld);
-      this.setStatus(
-        dwarf.commandQueue.length > beforeLength
-          ? "Queued region mining"
-          : "No mineable tile in region",
+      const issued = this.simulation.issueRegionMineOrder(
+        dwarf,
+        createRegion(startCell, endCell),
+        this.shiftHeld,
       );
+      this.setStatus(issued ? "Queued region mining" : "No mineable tile in region");
       return;
     }
 
@@ -401,17 +473,13 @@ export class Game {
     }
 
     const block = this.simulation.world.getBlock(target.x, target.y);
-    const beforeLength = dwarf.commandQueue.length;
+    let issued: boolean;
     if (block === BlockType.EMPTY || block === BlockType.BASE) {
-      this.simulation.issueWalkOrder(dwarf, target, this.shiftHeld);
-      this.setStatus("Walk order issued");
+      issued = this.simulation.issueWalkOrder(dwarf, target, this.shiftHeld);
+      this.setStatus(issued ? "Walk order issued" : "No valid path to target");
     } else {
-      this.simulation.issueMineOrder(dwarf, target, this.shiftHeld);
-      this.setStatus("Mine order issued");
-    }
-
-    if (beforeLength === dwarf.commandQueue.length) {
-      this.setStatus("No valid path to target");
+      issued = this.simulation.issueMineOrder(dwarf, target, this.shiftHeld);
+      this.setStatus(issued ? "Mine order issued" : "No valid path to target");
     }
   }
 
@@ -456,7 +524,33 @@ export class Game {
       return;
     }
 
+    this.audio.playEffect("levelUp");
     this.setStatus(`Leveled up ${dwarf.displayName} to ${dwarf.level}`);
+  }
+
+  private playSimulationEffect(effect: SimulationEffect): void {
+    const listener = this.camera?.center;
+    if (listener === undefined) {
+      return;
+    }
+
+    switch (effect.type) {
+      case "damage":
+        this.audio.playEffect("damage", effect.position, listener);
+        break;
+      case "mine":
+        this.audio.playEffect("mine", effect.position, listener);
+        break;
+      case "pickup":
+        this.audio.playEffect("pickup", effect.position, listener);
+        break;
+      case "newCave":
+        this.audio.playEffect("newCave", effect.position, listener);
+        break;
+      case "lose":
+        this.audio.playEffect("lose");
+        break;
+    }
   }
 
   private getSelectedDwarf(): Dwarf | undefined {
@@ -470,7 +564,7 @@ export class Game {
       return undefined;
     }
 
-    return creature as Dwarf;
+    return creature instanceof Dwarf ? creature : undefined;
   }
 
   private findSelectableCreatureAt(position: GridPosition): Creature | undefined {
@@ -556,5 +650,11 @@ export class Game {
     this.mouseState.x = Math.min(Math.max((event.clientX - bounds.left) / bounds.width, 0), 1);
     this.mouseState.y = Math.min(Math.max((event.clientY - bounds.top) / bounds.height, 0), 1);
     this.mouseState.inside = true;
+  }
+
+  private updateSoundButton(): void {
+    if (this.soundButton !== null) {
+      this.soundButton.textContent = this.audio.isMuted ? "Enable Audio" : "Mute Audio";
+    }
   }
 }

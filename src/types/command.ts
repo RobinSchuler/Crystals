@@ -10,6 +10,12 @@ export interface GridRegion {
   readonly end: GridPosition;
 }
 
+export interface CommandData {
+  readonly type: CommandType;
+  readonly target?: GridPosition;
+  readonly region?: GridRegion;
+}
+
 function freezePosition(x: number, y: number): GridPosition {
   return Object.freeze({ x, y });
 }
@@ -57,5 +63,37 @@ export class Command {
     const endY = Math.max(y1, y2);
 
     return new Command("regionMine", undefined, freezeRegion(startX, startY, endX, endY));
+  }
+
+  public static fromData(data: CommandData): Command {
+    switch (data.type) {
+      case "walk":
+        if (data.target === undefined) {
+          throw new Error("Walk command requires a target");
+        }
+        return Command.walk(data.target.x, data.target.y);
+      case "mine":
+        if (data.target === undefined) {
+          throw new Error("Mine command requires a target");
+        }
+        return Command.mine(data.target.x, data.target.y);
+      case "attack":
+        if (data.target === undefined) {
+          throw new Error("Attack command requires a target");
+        }
+        return Command.attack(data.target.x, data.target.y);
+      case "regionMine":
+        if (data.region === undefined) {
+          throw new Error("Region mine command requires a region");
+        }
+        return Command.regionMine(
+          data.region.start.x,
+          data.region.start.y,
+          data.region.end.x,
+          data.region.end.y,
+        );
+      case "wait":
+        return Command.wait();
+    }
   }
 }

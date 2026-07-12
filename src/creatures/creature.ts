@@ -179,7 +179,10 @@ export class Creature {
       level: this.level,
       health: this.health,
       position: this.position,
-      commandQueue: Object.freeze(this.commandQueue.map((command) => command.type)),
+      direction: this.direction,
+      regenerationDisabled: this.regenerationDisabled,
+      stats: Object.freeze({ ...this.stats }),
+      commandQueue: Object.freeze([...this.commandQueue]),
     });
   }
 
@@ -211,6 +214,16 @@ export class Creature {
 
   public applyDamage(amount: number): void {
     this.health -= Math.max(0, amount);
+  }
+
+  public restoreSnapshotState(snapshot: CreatureSnapshot): void {
+    if (snapshot.stats !== undefined) {
+      this.stats = Object.freeze({ ...snapshot.stats });
+    }
+    this.health = Math.min(this.maxHealth, snapshot.health);
+    this.direction = snapshot.direction ?? "south";
+    this.regenerationDisabled = snapshot.regenerationDisabled ?? false;
+    this.replaceCommands(snapshot.commandQueue.map((command) => Command.fromData(command)));
   }
 
   public onAttackedBy(_attacker: Creature): void {}
@@ -262,6 +275,10 @@ export class Creature {
             return;
           }
         }
+        break;
+      case "wait":
+      case "attack":
+        this.commandQueue.shift();
         break;
       default:
         break;
@@ -389,6 +406,16 @@ export class Creature {
     }
 
     const targetBlock = simulation.getBlock(this.miningTarget.x, this.miningTarget.y);
+    if (
+      targetBlock === BlockType.EMPTY ||
+      targetBlock === BlockType.BASE ||
+      targetBlock === BlockType.ROCK
+    ) {
+      this.miningTarget = null;
+      this.miningProgressMs = 0;
+      this.miningEffectProgressMs = 0;
+      return false;
+    }
     const durationMs = this.getMiningDurationForBlock(targetBlock);
 
     this.miningProgressMs += deltaMs;

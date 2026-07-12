@@ -7,24 +7,186 @@
     <link rel="icon" href="/assets/icon.png" />
     <style>
       * {
-        margin: 0;
-        padding: 0;
         box-sizing: border-box;
       }
       html,
       body {
         width: 100%;
         height: 100%;
+        margin: 0;
         overflow: hidden;
-        background: #1a1a2e;
+        color: #e2e8f0;
+        background: #080d1a;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       }
-      canvas {
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      .editor-layout {
+        height: 100%;
+        display: grid;
+        grid-template-columns: 320px minmax(0, 1fr);
+      }
+      .editor-sidebar {
+        overflow-y: auto;
+        padding: 20px;
+        border-right: 1px solid #475569;
+        background: #111827;
+      }
+      h1 {
+        margin: 0 0 4px;
+        color: #fde68a;
+        font-family: Georgia, serif;
+        font-size: 30px;
+      }
+      .editor-subtitle {
+        margin: 0 0 20px;
+        color: #94a3b8;
+        font-size: 13px;
+      }
+      .editor-group {
+        display: grid;
+        gap: 9px;
+        margin-bottom: 20px;
+        padding: 14px;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        background: #172033;
+      }
+      .editor-group h2 {
+        margin: 0 0 4px;
+        color: #c4b5fd;
+        font-size: 16px;
+      }
+      label {
+        display: grid;
+        gap: 4px;
+        color: #cbd5e1;
+        font-size: 12px;
+      }
+      input,
+      select,
+      button {
+        width: 100%;
+        min-height: 38px;
+        padding: 7px 9px;
+        border: 1px solid #64748b;
+        border-radius: 6px;
+        color: #f8fafc;
+        background: #0f172a;
+      }
+      button {
+        border-color: #8b5cf6;
+        background: #312e81;
+        cursor: pointer;
+      }
+      button:hover,
+      button:focus-visible {
+        background: #4338ca;
+        outline: 2px solid #fde68a;
+        outline-offset: 2px;
+      }
+      .editor-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .editor-canvas-wrap {
+        min-width: 0;
+        min-height: 0;
+        position: relative;
+      }
+      #editor-canvas {
         display: block;
+        touch-action: none;
+        cursor: crosshair;
+      }
+      #editor-status {
+        min-height: 44px;
+        margin: 0;
+        padding: 10px;
+        border-radius: 6px;
+        color: #bfdbfe;
+        background: #0f172a;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      #editor-status.editor-error {
+        color: #fecaca;
+        background: #450a0a;
+      }
+      @media (max-width: 760px) {
+        .editor-layout {
+          grid-template-columns: 240px minmax(0, 1fr);
+        }
+        .editor-sidebar {
+          padding: 12px;
+        }
       }
     </style>
   </head>
   <body>
-    <canvas id="editor"></canvas>
+    <div class="editor-layout">
+      <aside class="editor-sidebar">
+        <h1>World Editor</h1>
+        <p class="editor-subtitle">Paint a cave for Crystals</p>
+
+        <section class="editor-group">
+          <h2>World</h2>
+          <label>Name <input id="world-name" value="New World" /></label>
+          <div class="editor-row">
+            <label
+              >Width <input id="world-width" type="number" min="1" max="128" value="24"
+            /></label>
+            <label
+              >Height <input id="world-height" type="number" min="1" max="128" value="18"
+            /></label>
+          </div>
+          <button id="new-world" type="button">Create New World</button>
+        </section>
+
+        <section class="editor-group">
+          <h2>Paint Tool</h2>
+          <label>
+            Mode
+            <select id="paint-mode">
+              <option value="block">Paint block</option>
+              <option value="monster">Place monster</option>
+              <option value="eraseMonster">Erase monster</option>
+            </select>
+          </label>
+          <label
+            >Block
+            <select id="block-type"></select
+          ></label>
+          <label
+            >Monster
+            <select id="monster-kind" disabled></select
+          ></label>
+          <label
+            >Monster level
+            <input id="monster-level" type="number" min="1" max="205" value="1" disabled
+          /></label>
+        </section>
+
+        <section class="editor-group">
+          <h2>Files</h2>
+          <div class="editor-row">
+            <button id="save-json" type="button">Save JSON</button>
+            <button id="load-json" type="button">Load JSON</button>
+          </div>
+          <button id="export-png" type="button">Export Legacy PNG</button>
+          <input id="load-json-input" type="file" accept=".json,application/json" hidden />
+        </section>
+
+        <p id="editor-status" role="status"></p>
+      </aside>
+      <main class="editor-canvas-wrap">
+        <canvas id="editor-canvas" aria-label="World editing grid"></canvas>
+      </main>
+    </div>
     <script type="module" src="/src/editor/main.ts"></script>
   </body>
 </html>

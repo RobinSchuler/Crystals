@@ -21,9 +21,114 @@
       canvas {
         display: block;
       }
+      canvas[hidden] {
+        display: none;
+      }
+      button {
+        font: inherit;
+      }
+      .menu-shell {
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        color: #f8fafc;
+        font-family: Georgia, "Times New Roman", serif;
+        background:
+          linear-gradient(rgba(5, 10, 20, 0.2), rgba(5, 10, 20, 0.72)),
+          url("/assets/hintergrund.png") center / cover no-repeat;
+      }
+      .menu-panel {
+        width: min(680px, 100%);
+        max-height: calc(100vh - 48px);
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 28px;
+        border: 2px solid #a78bfa;
+        border-radius: 18px;
+        background: rgba(12, 18, 35, 0.9);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+        text-align: center;
+      }
+      .menu-panel h1 {
+        font-size: clamp(36px, 7vw, 68px);
+        color: #fde68a;
+        text-shadow: 0 3px 0 #713f12;
+      }
+      .menu-panel p {
+        margin-bottom: 8px;
+        color: #cbd5e1;
+        font-family: monospace;
+      }
+      .menu-button {
+        min-height: 46px;
+        padding: 8px 20px;
+        border: 1px solid #fbbf24;
+        border-radius: 8px;
+        color: #fff7ed;
+        background:
+          linear-gradient(rgba(67, 56, 202, 0.55), rgba(30, 41, 59, 0.78)),
+          url("/assets/button.png") center / 100% 100% no-repeat;
+        cursor: pointer;
+        font-size: 19px;
+        font-weight: 700;
+        text-shadow: 0 2px 2px #000;
+      }
+      .menu-button:hover,
+      .menu-button:focus-visible {
+        filter: brightness(1.25);
+        outline: 3px solid #fde68a;
+        outline-offset: 2px;
+      }
+      .menu-button-secondary {
+        border-color: #94a3b8;
+        background: #334155;
+      }
+      .menu-world-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .menu-image-panel {
+        width: min(820px, 100%);
+      }
+      .menu-artwork {
+        width: 100%;
+        max-height: min(62vh, 594px);
+        object-fit: contain;
+        border-radius: 8px;
+        cursor: pointer;
+        background: #020617;
+      }
+      .menu-tutorial-artwork {
+        min-height: 0;
+      }
+      .menu-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+      @media (max-width: 620px) {
+        .menu-shell {
+          padding: 12px;
+        }
+        .menu-panel {
+          max-height: calc(100vh - 24px);
+          padding: 18px;
+        }
+        .menu-world-list {
+          grid-template-columns: 1fr;
+        }
+        .menu-row {
+          grid-template-columns: 1fr;
+        }
+      }
     </style>
   </head>
   <body>
+    <div id="menu"></div>
     <canvas id="game"></canvas>
     <script type="module" src="/src/main.ts"></script>
   </body>

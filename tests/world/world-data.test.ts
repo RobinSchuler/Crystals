@@ -51,12 +51,14 @@ describe("world serialization", () => {
         creatures: [
           {
             id: "dwarf-1",
-            kind: "worker-dwarf",
+            kind: "dwarf",
             faction: "dwarf",
             level: 1,
             health: 10,
             position: { x: 0, y: 0 },
-            commandQueue: ["walk"],
+            direction: "east",
+            equipment: "pickaxe",
+            commandQueue: [{ type: "walk", target: { x: 1, y: 0 } }],
           },
         ],
       }),
@@ -68,7 +70,59 @@ describe("world serialization", () => {
     expect(parsed.resources.crystals).toBe(1);
     expect(parsed.camera).toEqual({ x: 14, y: 9 });
     expect(parsed.creatures).toHaveLength(1);
+    expect(parsed.creatures[0]).toMatchObject({
+      direction: "east",
+      equipment: "pickaxe",
+      commandQueue: [{ type: "walk", target: { x: 1, y: 0 } }],
+    });
     expect(parsed.visibility).toHaveLength(4);
     expect(parsed.map.blocks[3]).toBe(BlockType.CRYSTAL);
   });
+
+  it("rejects structurally unsafe maps and saves", () => {
+    const validMap = World.createEmpty("validation", 2, 2).toMapData();
+
+    expect(() => parseWorldMap(JSON.stringify({ ...validMap, width: 2.5 }))).toThrow(
+      /width must be an integer/,
+    );
+    expect(() =>
+      parseWorldMap(
+        JSON.stringify({
+          ...validMap,
+          monsterSpawns: [{ kind: "dragon", level: 1, position: { x: 0, y: 0 } }],
+        }),
+      ),
+    ).toThrow(/kind is invalid/);
+
+    const save = validSave(validMap);
+    expect(() =>
+      parseWorldSave(
+        JSON.stringify({
+          ...save,
+          creatures: [save.creatures[0], { ...save.creatures[0], position: { x: 1, y: 1 } }],
+        }),
+      ),
+    ).toThrow(/id must be unique/);
+  });
 });
+
+function validSave(map: ReturnType<World["toMapData"]>) {
+  return {
+    version: 1,
+    map,
+    visibility: new Array(map.width * map.height).fill(false),
+    resources: createEmptyResources(),
+    camera: { x: 0, y: 0 },
+    creatures: [
+      {
+        id: "dwarf-1",
+        kind: "dwarf",
+        faction: "dwarf",
+        level: 1,
+        health: 10,
+        position: { x: 0, y: 0 },
+        commandQueue: [],
+      },
+    ],
+  } as const;
+}

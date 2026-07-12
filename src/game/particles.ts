@@ -93,6 +93,10 @@ export class ParticleSystem {
       return;
     }
 
+    if (effect.type !== "mine") {
+      return;
+    }
+
     for (let index = 0; index < 8; index += 1) {
       const angle = (Math.PI * 2 * index) / 8;
       const speed = 0.00035 + (index % 3) * 0.00006;

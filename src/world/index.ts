@@ -8,6 +8,7 @@ export {
   serializeWorldSave,
   type CameraState,
   type CreatureSnapshot,
+  type CreatureStatsSnapshot,
   type MonsterKind,
   type MonsterSpawn,
   type WorldMapData,

@@ -39,4 +39,15 @@ describe("Command", () => {
       end: { x: 10, y: 8 },
     });
   });
+
+  it("restores commands from serialized data", () => {
+    expect(Command.fromData({ type: "walk", target: { x: 2, y: 3 } })).toEqual(Command.walk(2, 3));
+    expect(
+      Command.fromData({
+        type: "regionMine",
+        region: { start: { x: 5, y: 4 }, end: { x: 1, y: 2 } },
+      }),
+    ).toEqual(Command.regionMine(1, 2, 5, 4));
+    expect(() => Command.fromData({ type: "mine" })).toThrow(/requires a target/);
+  });
 });

@@ -11,7 +11,6 @@ import {
 } from "@/world";
 
 import { Creature, type RandomSource, type WorldSimulationLike } from "./creature";
-import { type CreatureKind } from "./definitions";
 import { Dwarf } from "./dwarf";
 
 type SpawnableMonsterKind = Exclude<MonsterKind, "random">;
@@ -26,6 +25,10 @@ export type SimulationEffect =
   | {
       readonly type: "mine";
       readonly block: BlockType;
+      readonly position: GridPosition;
+    }
+  | {
+      readonly type: "pickup" | "newCave" | "lose";
       readonly position: GridPosition;
     };
 
@@ -142,7 +145,7 @@ export class CreatureSimulation implements WorldSimulationLike {
         creatureSnapshot.kind === "dwarf"
           ? new Dwarf(creatureSnapshot.id, creatureSnapshot.position)
           : simulation.createMonster(
-              creatureSnapshot.kind as Exclude<CreatureKind, "dwarf">,
+              creatureSnapshot.kind,
               creatureSnapshot.position,
               creatureSnapshot.id,
             );
@@ -151,7 +154,24 @@ export class CreatureSimulation implements WorldSimulationLike {
         creature.levelUp();
       }
 
-      creature.health = creatureSnapshot.health;
+      if (creature instanceof Dwarf) {
+        switch (creatureSnapshot.equipment) {
+          case "axe":
+            creature.equipAxe();
+            break;
+          case "pickaxe":
+            creature.equipPickaxe();
+            break;
+          case "hammer":
+            creature.equipHammer();
+            break;
+          case "none":
+          case undefined:
+            break;
+        }
+      }
+
+      creature.restoreSnapshotState(creatureSnapshot);
       simulation.addCreature(creature);
     }
 
@@ -239,7 +259,10 @@ export class CreatureSimulation implements WorldSimulationLike {
     this.world.registerCreature(creature.id, nextCell);
 
     if (creature instanceof Dwarf) {
-      this.world.revealFrom(nextCell.x, nextCell.y);
+      const revealedCount = this.world.revealFrom(nextCell.x, nextCell.y);
+      if (revealedCount > 0) {
+        this.emitEffect({ type: "newCave", position: nextCell });
+      }
     }
   }
 
@@ -281,6 +304,7 @@ export class CreatureSimulation implements WorldSimulationLike {
 
   public onMineResolved(creature: Creature, target: GridPosition): void {
     const block = this.world.getBlock(target.x, target.y);
+    let collectedResource = false;
 
     if (block === BlockType.ROCK || block === BlockType.BASE) {
       return;
@@ -289,15 +313,19 @@ export class CreatureSimulation implements WorldSimulationLike {
     switch (block) {
       case BlockType.IRON:
         this.resourceState.iron += Math.trunc(this.random.next() * 3 + 3);
+        collectedResource = true;
         break;
       case BlockType.GOLD:
         this.resourceState.gold += Math.trunc(this.random.next() * 5 + 3);
+        collectedResource = true;
         break;
       case BlockType.MITHRIL:
         this.resourceState.mithril += Math.trunc(this.random.next() * 3 + 3);
+        collectedResource = true;
         break;
       case BlockType.CRYSTAL:
         this.resourceState.crystals += 1;
+        collectedResource = true;
         break;
       case BlockType.TRAP:
         this.resolveTrap(creature, target);
@@ -314,11 +342,24 @@ export class CreatureSimulation implements WorldSimulationLike {
       });
     }
 
+    if (collectedResource) {
+      this.emitEffect({ type: "pickup", position: target });
+    }
+
     this.world.setBlock(target.x, target.y, BlockType.EMPTY);
-    this.world.revealFrom(target.x, target.y);
+    const revealedCount = this.world.revealFrom(target.x, target.y);
+    if (revealedCount > 0) {
+      this.emitEffect({ type: "newCave", position: target });
+    }
   }
 
   public killCreature(creature: Creature): void {
+    if (!this.creatures.has(creature.id)) {
+      return;
+    }
+    if (creature instanceof Dwarf) {
+      this.emitEffect({ type: "lose", position: creature.cellPosition });
+    }
     this.world.unregisterCreature(creature.id, creature.cellPosition);
     this.creatures.delete(creature.id);
   }
@@ -341,30 +382,38 @@ export class CreatureSimulation implements WorldSimulationLike {
     });
   }
 
-  public issueWalkOrder(dwarf: Dwarf, target: GridPosition, append = false): void {
+  public issueWalkOrder(dwarf: Dwarf, target: GridPosition, append = false): boolean {
     const start = append ? dwarf.getPlannedPosition() : dwarf.cellPosition;
     const path = this.findPath(start, target);
+    if (path.length === 0 && (start.x !== target.x || start.y !== target.y)) {
+      return false;
+    }
     const commands = path.map((position) => Command.walk(position.x, position.y));
     dwarf.queueCommands(commands, append);
+    return true;
   }
 
-  public issueMineOrder(dwarf: Dwarf, target: GridPosition, append = false): void {
+  public issueMineOrder(dwarf: Dwarf, target: GridPosition, append = false): boolean {
     if (!this.world.inBounds(target.x, target.y)) {
-      return;
+      return false;
     }
 
-    if (this.world.getBlock(target.x, target.y) === BlockType.EMPTY) {
-      this.issueWalkOrder(dwarf, target, append);
-      return;
+    const targetBlock = this.world.getBlock(target.x, target.y);
+    if (targetBlock === BlockType.EMPTY || targetBlock === BlockType.BASE) {
+      return this.issueWalkOrder(dwarf, target, append);
+    }
+    if (targetBlock === BlockType.ROCK) {
+      return false;
     }
 
     const start = append ? dwarf.getPlannedPosition() : dwarf.cellPosition;
     const path = this.findMiningPath(start, target);
     if (path === null) {
-      if (append) {
+      if (append && dwarf.commandQueue.length > 0) {
         dwarf.appendCommands([Command.mine(target.x, target.y)]);
+        return true;
       }
-      return;
+      return false;
     }
 
     const commands = [
@@ -372,20 +421,26 @@ export class CreatureSimulation implements WorldSimulationLike {
       Command.mine(target.x, target.y),
     ];
     dwarf.queueCommands(commands, append);
+    return true;
   }
 
   public issueRegionMineOrder(
     dwarf: Dwarf,
     region: { readonly start: GridPosition; readonly end: GridPosition },
     append = false,
-  ): void {
+  ): boolean {
+    const hasMineableTile = this.findLastMineableVisibleTile(region.start, region.end) !== null;
+    if (!hasMineableTile) {
+      return false;
+    }
     const command = Command.regionMine(region.start.x, region.start.y, region.end.x, region.end.y);
     if (append) {
       dwarf.appendCommands([command]);
-      return;
+      return true;
     }
 
     dwarf.replaceCommands([command]);
+    return true;
   }
 
   public resolveRegionMineCommand(
@@ -401,9 +456,7 @@ export class CreatureSimulation implements WorldSimulationLike {
       return false;
     }
 
-    const beforeLength = creature.commandQueue.length;
-    this.issueMineOrder(creature, target, false);
-    if (creature.commandQueue.length === beforeLength) {
+    if (!this.issueMineOrder(creature, target, false)) {
       return false;
     }
 
@@ -507,7 +560,7 @@ export class CreatureSimulation implements WorldSimulationLike {
     const kind = kinds[Math.trunc(this.random.next() * kinds.length)] ?? "rat";
     const creature = this.createMonster(kind, spawnPosition);
 
-    for (let index = 0; index < this.spawnConfig.level; index += 1) {
+    for (let index = 1; index < this.spawnConfig.level; index += 1) {
       creature.levelUp();
     }
 
@@ -561,6 +614,9 @@ export class CreatureSimulation implements WorldSimulationLike {
   }
 
   private addCreature(creature: Creature): void {
+    if (this.creatures.has(creature.id)) {
+      throw new Error(`Creature id already exists: ${creature.id}`);
+    }
     this.creatures.set(creature.id, creature);
     this.world.registerCreature(creature.id, creature.cellPosition);
   }
@@ -593,8 +649,11 @@ export class CreatureSimulation implements WorldSimulationLike {
   }
 
   private allocateId(prefix: string): string {
-    const id = `${prefix}-${this.nextCreatureId}`;
-    this.nextCreatureId += 1;
+    let id: string;
+    do {
+      id = `${prefix}-${this.nextCreatureId}`;
+      this.nextCreatureId += 1;
+    } while (this.creatures.has(id));
     return id;
   }
 
@@ -626,7 +685,9 @@ export class CreatureSimulation implements WorldSimulationLike {
       preferred.find((position) => {
         return (
           this.world.inBounds(position.x, position.y) &&
-          this.world.getBlock(position.x, position.y) === BlockType.EMPTY &&
+          [BlockType.EMPTY, BlockType.BASE, BlockType.CRYSTAL].includes(
+            this.world.getBlock(position.x, position.y),
+          ) &&
           this.world.isVisible(position.x, position.y)
         );
       }) ?? null

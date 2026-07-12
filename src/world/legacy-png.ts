@@ -81,6 +81,10 @@ function mapLegacyColorToBlock(color: RgbColor): BlockType {
       return BlockType.TRAP;
     case "30,30,30":
       return BlockType.ROCK;
+    case "15,15,15":
+      return BlockType.SHADOW;
+    case "255,100,0":
+      return BlockType.LAVA;
     default:
       return BlockType.EMPTY;
   }

@@ -42,7 +42,7 @@ describe("World", () => {
     world.setBlock(1, 2, BlockType.ROCK);
     world.setBlock(2, 2, BlockType.ROCK);
 
-    world.revealFrom(0, 0);
+    const revealedCount = world.revealFrom(0, 0);
 
     expect(world.isVisible(0, 0)).toBe(true);
     expect(world.isVisible(1, 0)).toBe(true);
@@ -53,6 +53,8 @@ describe("World", () => {
     expect(world.isVisible(0, 2)).toBe(true);
     expect(world.isVisible(1, 2)).toBe(true);
     expect(world.isVisible(2, 2)).toBe(false);
+    expect(revealedCount).toBe(8);
+    expect(world.revealFrom(0, 0)).toBe(0);
   });
 
   it("tracks creature ids per cell", () => {
@@ -64,5 +66,16 @@ describe("World", () => {
     expect(world.getCreaturesAt({ x: 1, y: 1 })).toEqual(["dwarf-1", "monster-1"]);
     expect(world.unregisterCreature("dwarf-1", { x: 1, y: 1 })).toBe(true);
     expect(world.getCreaturesAt({ x: 1, y: 1 })).toEqual(["monster-1"]);
+  });
+
+  it("moves the unique base instead of leaving stale base blocks", () => {
+    const world = World.createEmpty("base", 2, 2);
+
+    world.setBlock(0, 0, BlockType.BASE);
+    world.setBlock(1, 1, BlockType.BASE);
+
+    expect(world.basePosition).toEqual({ x: 1, y: 1 });
+    expect(world.getBlock(0, 0)).toBe(BlockType.EMPTY);
+    expect(world.getBlock(1, 1)).toBe(BlockType.BASE);
   });
 });

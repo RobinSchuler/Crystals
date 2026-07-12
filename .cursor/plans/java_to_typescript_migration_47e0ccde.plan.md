@@ -28,13 +28,13 @@ todos:
     status: completed
   - id: layer-6-audio
     content: "Layer 6: Audio -- Web Audio API, positional sound, background music, sound effects"
-    status: pending
+    status: completed
   - id: layer-7-menus
     content: "Layer 7: UI/Menus -- Main menu, world selection, tutorials, story/credits screens"
-    status: pending
+    status: completed
   - id: layer-8-editor
     content: "Layer 8: WeltEditor -- Canvas tile editor, paint blocks/monsters, JSON save/load"
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -311,4 +311,3 @@ tsconfig.json
 - **Map format**: JSON with grid as a flat array, monster spawn list, base position, metadata (created by WeltEditor)
 - **Save format**: Separate JSON schema extending the map format with current creature states, mined tiles, resources, camera position
 - **Positional audio**: use Web Audio API gain nodes based on distance from camera center
-
